@@ -26,7 +26,7 @@ while IFS=, read -r prog args expected mode; do
   dir="$out_root/$name"; mkdir -p "$dir"
   export LOCKSPY_OUTDIR="$dir" LOCKSPY_FORMAT=text,json,dot
   if [ "$mode" = hang ]; then export LOCKSPY_ON_DEADLOCK=abort; else export LOCKSPY_ON_DEADLOCK=report; fi
-  ( timeout -s KILL 20 ./bin/lockspy run -- ./build/tests/$prog $args > "$dir/stdout.txt" 2> "$dir/stderr.txt" ) 2>/dev/null
+  ( timeout -s KILL 20 ./bin/lockspy run -- ./build/tests/$prog $args > "$dir/stdout.txt" 2> "$dir/stderr.txt"; exit $? ) 2>/dev/null
   rc=$?
   got="$(kinds "$dir/stderr.txt")"; got="${got:-NONE}"
   want="$(sorted "$expected")"

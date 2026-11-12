@@ -22,6 +22,7 @@ std::string frame_str(const Frame& f);                  // "worker_p() (ab_ba.cp
 std::string site_of(const Stack& s, void* fallback_pc);  // first frame in the user's own code
 std::vector<std::string> stack_lines(const Stack& s);   // user-visible frames, innermost first
 std::string lock_name(int id);
+std::string object_name(uintptr_t addr, uint64_t size);  // global variable name, else hex address
 std::string thread_name(int idx);
 std::string thread_start(int idx);                      // name of the start routine, "" if none
 std::string run_capture(const std::vector<std::string>& argv);  // run a helper, return stdout

@@ -264,10 +264,10 @@ static std::string summary_text(const Snapshot& s) {
         }
     }
     for (auto& kv : s.conds)
-        o << "condition variable " << (void*)kv.first << ": " << kv.second.waits << " waits, " << ms(kv.second.wait_ns)
+        o << "condition variable " << object_name(kv.first, sizeof(pthread_cond_t)) << ": " << kv.second.waits << " waits, " << ms(kv.second.wait_ns)
           << " ms asleep (max " << ms(kv.second.wait_max) << " ms)\n";
     for (auto& kv : s.sems)
-        o << "semaphore " << (void*)kv.first << ": " << kv.second.waits << " waits (" << kv.second.contended
+        o << "semaphore " << object_name(kv.first, sizeof(sem_t)) << ": " << kv.second.waits << " waits (" << kv.second.contended
           << " blocked), " << kv.second.posts << " posts, " << ms(kv.second.wait_ns) << " ms waiting (max "
           << ms(kv.second.wait_max) << " ms)\n";
     return o.str();

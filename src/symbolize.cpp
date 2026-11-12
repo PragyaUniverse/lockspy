@@ -209,20 +209,28 @@ static const std::vector<Sym>& data_syms(const std::string& path) {
     return v;
 }
 
-static std::string global_name(const LockInfo& L) {
+// Name of the global variable that contains addr ("A", "forks[3]", "accounts+40"), or "".
+static std::string global_name(uintptr_t addr, uint64_t elem) {
     Dl_info di;
-    if (!dladdr((void*)L.addr, &di) || di.dli_fbase == C->our_base) return "";
+    if (!dladdr((void*)addr, &di) || di.dli_fbase == C->our_base) return "";
     std::string path = object_path(di);
-    uint64_t a = L.addr - (is_exec(path) ? 0 : (uintptr_t)di.dli_fbase);
-    uint64_t lsz = L.kind == K_MUTEX ? sizeof(pthread_mutex_t) : sizeof(pthread_rwlock_t);
+    uint64_t a = addr - (is_exec(path) ? 0 : (uintptr_t)di.dli_fbase);
     for (const Sym& s : data_syms(path)) {
         if (a < s.addr || a >= s.addr + s.size) continue;
         uint64_t off = a - s.addr;
-        if (off == 0 && s.size == lsz) return s.name;
-        if (off % lsz == 0 && s.size % lsz == 0) return s.name + "[" + std::to_string(off / lsz) + "]";
+        if (off == 0 && s.size == elem) return s.name;
+        if (off % elem == 0 && s.size % elem == 0) return s.name + "[" + std::to_string(off / elem) + "]";
         return s.name + "+" + std::to_string(off);
     }
     return "";
+}
+
+std::string object_name(uintptr_t addr, uint64_t size) {
+    sym_lock();
+    std::string n = global_name(addr, size);
+    sym_unlock();
+    if (n.empty()) { char b[32]; snprintf(b, sizeof b, "%#lx", (unsigned long)addr); n = b; }
+    return n;
 }
 
 static std::string user_name(void* pc) {
@@ -240,7 +248,7 @@ std::string lock_name(int id) {
         const char* kind = L->kind == K_MUTEX ? "mutex" : "rwlock";
         std::string n = user_name(L->init_pc);
         if (n.empty()) n = user_name(L->first_pc);
-        if (n.empty()) n = global_name(*L);
+        if (n.empty()) n = global_name(L->addr, L->kind == K_MUTEX ? sizeof(pthread_mutex_t) : sizeof(pthread_rwlock_t));
         if (n.empty()) {
             void* pc = L->init_pc ? L->init_pc : L->first_pc;
             Frame f = pc ? sym_pc_locked(pc, true) : Frame();
