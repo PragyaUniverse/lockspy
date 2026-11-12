@@ -1,0 +1,11 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/correct/producer_consumer_ok  pid 899  ran 0.003 s  (8045 lock events)
+threads 3, locks 2, lock-order edges 1
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   buf_lock                       4001          1        0.013      0.013        1.406      0.034
+  2   log_lock                         21          0        0.000      0.000        0.016      0.009
+condition variable not_empty: 249 waits, 1.628 ms asleep (max 0.029 ms)
+condition variable not_full: 249 waits, 1.641 ms asleep (max 0.047 ms)

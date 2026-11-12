@@ -1,0 +1,28 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.000s)
+  Lock A -> Lock B   taken by thread P in worker_p() (ab_ba.cpp:21)
+  Lock B -> Lock A   taken by thread Q in worker_q() (ab_ba.cpp:32)
+  Suggested fix: acquire A before B in every thread.
+    change worker_q() (ab_ba.cpp:32): it takes A while holding B
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  A, B are mutexes, only one owner at a time
+    ✔ Hold and wait     P holds A while requesting B; Q holds B while requesting A
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     P -> B -> Q -> A -> P   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread P (T1, started in worker_p()) requesting B:
+      #0 worker_p() (ab_ba.cpp:21)
+    thread Q (T2, started in worker_q()) requesting A:
+      #0 worker_q() (ab_ba.cpp:32)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/ab_ba  pid 160  ran 0.004 s  (8 lock events)
+threads 3, locks 2, lock-order edges 2
+findings: 1 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.000s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {A, B}  order: A < B
+    violated in worker_q() (ab_ba.cpp:32): takes A while holding B
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   A                                 2          0        0.000      0.000        3.488      3.475
+  2   B                                 2          0        0.000      0.000        3.483      3.479

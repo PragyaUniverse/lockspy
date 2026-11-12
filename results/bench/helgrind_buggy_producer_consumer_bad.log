@@ -1,0 +1,70 @@
+==503== Helgrind, a thread error detector
+==503== Copyright (C) 2007-2017, and GNU GPL'd, by OpenWorks LLP et al.
+==503== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==503== Command: ./build/tests/buggy/producer_consumer_bad
+==503== 
+==503== ---Thread-Announcement------------------------------------------
+==503== 
+==503== Thread #2 was created
+==503==    at 0x49BB8B7: clone (clone.S:62)
+==503==    by 0x4955397: create_thread (pthread_create.c:297)
+==503==    by 0x4955E67: pthread_create@@GLIBC_2.34 (pthread_create.c:836)
+==503==    by 0x48929BB: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400F73: main (producer_consumer_bad.cpp:54)
+==503== 
+==503== ----------------------------------------------------------------
+==503== 
+==503== Thread #2: lock order "0x420070 before 0x4200A0" violated
+==503== 
+==503== Observed (incorrect) order is: acquisition of lock at 0x4200A0
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400ED7: consumer(void*) (producer_consumer_bad.cpp:44)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503== 
+==503==  followed by a later acquisition of lock at 0x420070
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400EE3: consumer(void*) (producer_consumer_bad.cpp:45)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503== 
+==503== Required order was established by acquisition of lock at 0x420070
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400CCF: producer(void*) (producer_consumer_bad.cpp:24)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503== 
+==503==  followed by a later acquisition of lock at 0x4200A0
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400C7B: log_event() (producer_consumer_bad.cpp:17)
+==503==    by 0x400D9B: producer(void*) (producer_consumer_bad.cpp:27)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503== 
+==503==  Lock at 0x420070 was first observed
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400DFB: consumer(void*) (producer_consumer_bad.cpp:37)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503==  Address 0x420070 is 0 bytes inside data symbol "buf_lock"
+==503== 
+==503==  Lock at 0x4200A0 was first observed
+==503==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x400C7B: log_event() (producer_consumer_bad.cpp:17)
+==503==    by 0x400D9B: producer(void*) (producer_consumer_bad.cpp:27)
+==503==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==503==    by 0x495582B: start_thread (pthread_create.c:447)
+==503==    by 0x49BB8DB: thread_start (clone.S:79)
+==503==  Address 0x4200a0 is 0 bytes inside data symbol "log_lock"
+==503== 
+==503== 
+==503== 
+==503== Use --history-level=approx or =none to gain increased speed, at
+==503== the cost of reduced accuracy of conflicting-access information
+==503== For lists of detected and suppressed errors, rerun with: -s
+==503== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 6540 from 29)

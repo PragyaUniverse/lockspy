@@ -1,0 +1,10 @@
+==1072== Helgrind, a thread error detector
+==1072== Copyright (C) 2007-2017, and GNU GPL'd, by OpenWorks LLP et al.
+==1072== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==1072== Command: ./build/tests/correct/consistent_order
+==1072== 
+==1072== 
+==1072== Use --history-level=approx or =none to gain increased speed, at
+==1072== the cost of reduced accuracy of conflicting-access information
+==1072== For lists of detected and suppressed errors, rerun with: -s
+==1072== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 9015 from 7)

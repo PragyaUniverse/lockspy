@@ -1,0 +1,43 @@
+[LockSpy] MISUSE: relock of a non-recursive lock  (#1, t=0.000s)
+  thread main already holds Lock check_lock (taken in main() (recursive_lock.cpp:30)) and requests it again in main() (recursive_lock.cpp:31)
+  A normal mutex now waits for itself forever; an error-checking mutex returns EDEADLK.
+  Call stacks:
+    thread main (T0, started in main()) relocking check_lock:
+      #0 main() (recursive_lock.cpp:31)
+[LockSpy] MISUSE: relock of a non-recursive lock  (#2, t=0.002s)
+  thread main already holds Lock plain_lock (taken in outer() (recursive_lock.cpp:14)) and requests it again in inner() (recursive_lock.cpp:11)
+  A normal mutex now waits for itself forever; an error-checking mutex returns EDEADLK.
+  Call stacks:
+    thread main (T0, started in main()) relocking plain_lock:
+      #0 inner() (recursive_lock.cpp:11)
+      #1 outer() (recursive_lock.cpp:15)
+      #2 main() (recursive_lock.cpp:36)
+[LockSpy] LIVE DEADLOCK: a thread is waiting for itself  (#3, t=0.510s)
+  thread main holds Lock plain_lock and waits for Lock plain_lock (owner: itself), blocked 0.51s in inner() (recursive_lock.cpp:11)
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  plain_lock is a mutex, only one owner at a time
+    ✔ Hold and wait     main holds plain_lock and is blocked on plain_lock
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     main -> plain_lock -> main   (happening now)
+  This hang was predicted at t=0.002s (finding #2).
+  Suggested fix: do not lock plain_lock twice, or make it PTHREAD_MUTEX_RECURSIVE.
+  Call stacks:
+    thread main (T0, started in main()) blocked on plain_lock:
+      #0 inner() (recursive_lock.cpp:11)
+      #1 outer() (recursive_lock.cpp:15)
+      #2 main() (recursive_lock.cpp:36)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/recursive_lock  pid 608  ran 0.511 s  (9 lock events)
+threads 1, locks 3, lock-order edges 0
+findings: 0 potential deadlock, 1 live deadlock, 2 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+  #1 RELOCK at t=0.000s
+  #2 RELOCK at t=0.002s
+  #3 LIVE_DEADLOCK at t=0.510s
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   rec_lock                          2          0        0.000      0.000        0.008      0.008
+  2   check_lock                        1          0        0.000      0.000        2.261      2.261
+  3   plain_lock                        1          0        0.000      0.000        0.000      0.000
+[LockSpy] LOCKSPY_ON_DEADLOCK=abort: calling abort()
+timeout: the monitored command dumped core

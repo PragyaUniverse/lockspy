@@ -1,0 +1,9 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/tricky/single_thread_both_orders  pid 1227  ran 0.000 s  (800 lock events)
+threads 2, locks 2, lock-order edges 2
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 1 cycle(s)  (single thread 1, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   A                               200          0        0.000      0.000        0.033      0.013
+  2   B                               200          0        0.000      0.000        0.024      0.006

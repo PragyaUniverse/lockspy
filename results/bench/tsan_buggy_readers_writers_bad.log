@@ -1,0 +1,25 @@
+==================
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=568)
+  Cycle in lock order graph: M0 (0xaaaaaaac0020) => M1 (0xaaaaaaac0058) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 writer(void*) tests/buggy/readers_writers_bad.cpp:18 (readers_writers_bad+0xe64) (BuildId: 73ed21a36b30372aff74c82c2277d44af0561424)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M0 acquired here while holding mutex M1 in thread T6:
+    #0 pthread_rwlock_rdlock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1476 (libtsan.so.2+0x59ff0) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 auditor(void*) tests/buggy/readers_writers_bad.cpp:41 (readers_writers_bad+0x102c) (BuildId: 73ed21a36b30372aff74c82c2277d44af0561424)
+
+  Thread T1 (tid=570, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/readers_writers_bad.cpp:50 (readers_writers_bad+0x113c) (BuildId: 73ed21a36b30372aff74c82c2277d44af0561424)
+
+  Thread T6 (tid=575, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/readers_writers_bad.cpp:54 (readers_writers_bad+0x1250) (BuildId: 73ed21a36b30372aff74c82c2277d44af0561424)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) tests/buggy/readers_writers_bad.cpp:18 in writer(void*)
+==================
+ThreadSanitizer: reported 1 warnings

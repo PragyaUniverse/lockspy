@@ -1,0 +1,65 @@
+program,args,group,expected,tool,reported,verdict
+buggy/ab_ba,,buggy,POTENTIAL_DEADLOCK,lockspy,POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,,buggy,POTENTIAL_DEADLOCK,naive,POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,,buggy,POTENTIAL_DEADLOCK,tsan,POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,,buggy,POTENTIAL_DEADLOCK,helgrind,POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,--hang,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,lockspy,LIVE_DEADLOCK;POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,--hang,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,naive,LIVE_DEADLOCK;POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,--hang,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,tsan,POTENTIAL_DEADLOCK,caught
+buggy/ab_ba,--hang,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,helgrind,POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,lockspy,LIVE_DEADLOCK;POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,naive,LIVE_DEADLOCK;POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,tsan,NONE,missed
+buggy/philosophers_naive,,buggy,POTENTIAL_DEADLOCK;LIVE_DEADLOCK,helgrind,NONE,missed
+buggy/philosophers_naive,--no-hang,buggy,POTENTIAL_DEADLOCK,lockspy,POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,--no-hang,buggy,POTENTIAL_DEADLOCK,naive,POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,--no-hang,buggy,POTENTIAL_DEADLOCK,tsan,POTENTIAL_DEADLOCK,caught
+buggy/philosophers_naive,--no-hang,buggy,POTENTIAL_DEADLOCK,helgrind,POTENTIAL_DEADLOCK,caught
+buggy/producer_consumer_bad,,buggy,POTENTIAL_DEADLOCK,lockspy,POTENTIAL_DEADLOCK,caught
+buggy/producer_consumer_bad,,buggy,POTENTIAL_DEADLOCK,naive,POTENTIAL_DEADLOCK,caught
+buggy/producer_consumer_bad,,buggy,POTENTIAL_DEADLOCK,tsan,POTENTIAL_DEADLOCK,caught
+buggy/producer_consumer_bad,,buggy,POTENTIAL_DEADLOCK,helgrind,POTENTIAL_DEADLOCK,caught
+buggy/readers_writers_bad,,buggy,POTENTIAL_DEADLOCK,lockspy,POTENTIAL_DEADLOCK,caught
+buggy/readers_writers_bad,,buggy,POTENTIAL_DEADLOCK,naive,POTENTIAL_DEADLOCK,caught
+buggy/readers_writers_bad,,buggy,POTENTIAL_DEADLOCK,tsan,POTENTIAL_DEADLOCK,caught
+buggy/readers_writers_bad,,buggy,POTENTIAL_DEADLOCK,helgrind,POTENTIAL_DEADLOCK,caught
+buggy/recursive_lock,,buggy,RELOCK;LIVE_DEADLOCK,lockspy,LIVE_DEADLOCK;RELOCK,caught
+buggy/recursive_lock,,buggy,RELOCK;LIVE_DEADLOCK,naive,LIVE_DEADLOCK;RELOCK,caught
+buggy/recursive_lock,,buggy,RELOCK;LIVE_DEADLOCK,tsan,NONE,missed
+buggy/recursive_lock,,buggy,RELOCK;LIVE_DEADLOCK,helgrind,RELOCK,caught
+buggy/bad_unlock,,buggy,BAD_UNLOCK,lockspy,BAD_UNLOCK,caught
+buggy/bad_unlock,,buggy,BAD_UNLOCK,naive,BAD_UNLOCK,caught
+buggy/bad_unlock,,buggy,BAD_UNLOCK,tsan,BAD_UNLOCK,caught
+buggy/bad_unlock,,buggy,BAD_UNLOCK,helgrind,BAD_UNLOCK,caught
+buggy/lock_held_at_exit,,buggy,HELD_AT_EXIT,lockspy,HELD_AT_EXIT,caught
+buggy/lock_held_at_exit,,buggy,HELD_AT_EXIT,naive,HELD_AT_EXIT,caught
+buggy/lock_held_at_exit,,buggy,HELD_AT_EXIT,tsan,NONE,missed
+buggy/lock_held_at_exit,,buggy,HELD_AT_EXIT,helgrind,HELD_AT_EXIT,caught
+correct/philosophers_ordered,,correct,NONE,lockspy,NONE,clean
+correct/philosophers_ordered,,correct,NONE,naive,NONE,clean
+correct/philosophers_ordered,,correct,NONE,tsan,NONE,clean
+correct/philosophers_ordered,,correct,NONE,helgrind,NONE,clean
+correct/producer_consumer_ok,,correct,NONE,lockspy,NONE,clean
+correct/producer_consumer_ok,,correct,NONE,naive,NONE,clean
+correct/producer_consumer_ok,,correct,NONE,tsan,NONE,clean
+correct/producer_consumer_ok,,correct,NONE,helgrind,NONE,clean
+correct/readers_writers_ok,,correct,NONE,lockspy,NONE,clean
+correct/readers_writers_ok,,correct,NONE,naive,NONE,clean
+correct/readers_writers_ok,,correct,NONE,tsan,NONE,clean
+correct/readers_writers_ok,,correct,NONE,helgrind,NONE,clean
+correct/consistent_order,,correct,NONE,lockspy,NONE,clean
+correct/consistent_order,,correct,NONE,naive,NONE,clean
+correct/consistent_order,,correct,NONE,tsan,NONE,clean
+correct/consistent_order,,correct,NONE,helgrind,NONE,clean
+tricky/gate_lock_safe,,tricky,NONE,lockspy,NONE,clean
+tricky/gate_lock_safe,,tricky,NONE,naive,POTENTIAL_DEADLOCK,false alarm
+tricky/gate_lock_safe,,tricky,NONE,tsan,POTENTIAL_DEADLOCK,false alarm
+tricky/gate_lock_safe,,tricky,NONE,helgrind,POTENTIAL_DEADLOCK,false alarm
+tricky/trylock_backoff,,tricky,NONE,lockspy,NONE,clean
+tricky/trylock_backoff,,tricky,NONE,naive,POTENTIAL_DEADLOCK,false alarm
+tricky/trylock_backoff,,tricky,NONE,tsan,NONE,clean
+tricky/trylock_backoff,,tricky,NONE,helgrind,POTENTIAL_DEADLOCK,false alarm
+tricky/single_thread_both_orders,,tricky,NONE,lockspy,NONE,clean
+tricky/single_thread_both_orders,,tricky,NONE,naive,POTENTIAL_DEADLOCK,false alarm
+tricky/single_thread_both_orders,,tricky,NONE,tsan,POTENTIAL_DEADLOCK,false alarm
+tricky/single_thread_both_orders,,tricky,NONE,helgrind,POTENTIAL_DEADLOCK,false alarm

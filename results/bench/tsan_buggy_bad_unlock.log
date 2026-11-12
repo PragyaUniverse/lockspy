@@ -1,0 +1,27 @@
+==================
+WARNING: ThreadSanitizer: unlock of an unlocked mutex (or by a wrong thread) (pid=707)
+    #0 pthread_mutex_unlock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1375 (libtsan.so.2+0x59884) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/bad_unlock.cpp:21 (bad_unlock+0xd84) (BuildId: be5666600a5eabf3c459ab7d61dad051a4b60bde)
+
+  Location is global 'never_locked' of size 48 at 0xaaaaaaac0020 (bad_unlock+0x20020)
+
+  Mutex M0 (0xaaaaaaac0020) created at:
+    #0 pthread_mutex_unlock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1375 (libtsan.so.2+0x59884) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/bad_unlock.cpp:21 (bad_unlock+0xd84) (BuildId: be5666600a5eabf3c459ab7d61dad051a4b60bde)
+
+SUMMARY: ThreadSanitizer: unlock of an unlocked mutex (or by a wrong thread) tests/buggy/bad_unlock.cpp:21 in main
+==================
+==================
+WARNING: ThreadSanitizer: unlock of an unlocked mutex (or by a wrong thread) (pid=707)
+    #0 pthread_mutex_unlock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1375 (libtsan.so.2+0x59884) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/bad_unlock.cpp:27 (bad_unlock+0xde0) (BuildId: be5666600a5eabf3c459ab7d61dad051a4b60bde)
+
+  Location is global 'owned_by_worker' of size 48 at 0xaaaaaaac0050 (bad_unlock+0x20050)
+
+  Mutex M0 (0xaaaaaaac0050) created at:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 worker(void*) tests/buggy/bad_unlock.cpp:13 (bad_unlock+0xd04) (BuildId: be5666600a5eabf3c459ab7d61dad051a4b60bde)
+
+SUMMARY: ThreadSanitizer: unlock of an unlocked mutex (or by a wrong thread) tests/buggy/bad_unlock.cpp:27 in main
+==================
+ThreadSanitizer: reported 2 warnings

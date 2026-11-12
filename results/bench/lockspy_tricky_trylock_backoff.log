@@ -1,0 +1,9 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/tricky/trylock_backoff  pid 1159  ran 0.001 s  (18482 lock events)
+threads 3, locks 2, lock-order edges 0
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   B                              4496        198        0.113      0.007        0.708      0.014
+  2   A                              4610         72        0.105      0.008        0.703      0.026

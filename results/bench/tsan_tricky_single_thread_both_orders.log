@@ -1,0 +1,21 @@
+==================
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=1259)
+  Cycle in lock order graph: M0 (0xaaaaaaac0020) => M1 (0xaaaaaaac0050) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 only_user(void*) tests/tricky/single_thread_both_orders.cpp:13 (single_thread_both_orders+0xc9c) (BuildId: cbf3b27e388b1b8345a5984c6272d960104a1a3b)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M0 acquired here while holding mutex M1 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 only_user(void*) tests/tricky/single_thread_both_orders.cpp:14 (single_thread_both_orders+0xcd8) (BuildId: cbf3b27e388b1b8345a5984c6272d960104a1a3b)
+
+  Thread T1 (tid=1261, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/tricky/single_thread_both_orders.cpp:22 (single_thread_both_orders+0xda4) (BuildId: cbf3b27e388b1b8345a5984c6272d960104a1a3b)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) tests/tricky/single_thread_both_orders.cpp:13 in only_user(void*)
+==================
+ThreadSanitizer: reported 1 warnings

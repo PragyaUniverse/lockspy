@@ -1,0 +1,28 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.000s)
+  Lock A -> Lock B   taken by thread T1 in only_user() (single_thread_both_orders.cpp:13)
+  Lock B -> Lock A   taken by thread T1 in only_user() (single_thread_both_orders.cpp:14)
+  Suggested fix: acquire A before B in every thread.
+    change only_user() (single_thread_both_orders.cpp:14): it takes A while holding B
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  A, B are mutexes, only one owner at a time
+    ✔ Hold and wait     T1 holds A while requesting B; T1 holds B while requesting A
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     T1 -> B -> T1 -> A -> T1   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread T1 (started in only_user()) requesting B:
+      #0 only_user() (single_thread_both_orders.cpp:13)
+    thread T1 (started in only_user()) requesting A:
+      #0 only_user() (single_thread_both_orders.cpp:14)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/tricky/single_thread_both_orders  pid 1242  ran 0.003 s  (800 lock events)
+threads 2, locks 2, lock-order edges 2
+findings: 1 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.000s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {A, B}  order: A < B
+    violated in only_user() (single_thread_both_orders.cpp:14): takes A while holding B
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   A                               200          0        0.000      0.000        2.960      2.932
+  2   B                               200          0        0.000      0.000        2.952      2.934

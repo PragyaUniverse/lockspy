@@ -1,0 +1,20 @@
+[LockSpy] MISUSE: unlock of a lock this thread does not hold  (#1, t=0.000s)
+  thread main unlocks Lock never_locked in main() (bad_unlock.cpp:21) (current owner: nobody)
+  Call stacks:
+    thread main (T0, started in main()) unlocking never_locked:
+      #0 main() (bad_unlock.cpp:21)
+[LockSpy] MISUSE: unlock of a lock this thread does not hold  (#2, t=0.002s)
+  thread main unlocks Lock owned_by_worker in main() (bad_unlock.cpp:27) (current owner: thread T1)
+  Call stacks:
+    thread main (T0, started in main()) unlocking owned_by_worker:
+      #0 main() (bad_unlock.cpp:27)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/bad_unlock  pid 691  ran 0.003 s  (4 lock events)
+threads 2, locks 2, lock-order edges 0
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 2 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+  #1 BAD_UNLOCK at t=0.000s
+  #2 BAD_UNLOCK at t=0.002s
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   owned_by_worker                   1          0        0.000      0.000        0.886      0.886

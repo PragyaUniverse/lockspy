@@ -1,0 +1,26 @@
+==================
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=489)
+  Cycle in lock order graph: M0 (0xaaaaaaac0020) => M1 (0xaaaaaaac0050) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in thread T2:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 log_event tests/buggy/producer_consumer_bad.cpp:17 (producer_consumer_bad+0xdc0) (BuildId: fae20327e5e0e7618cb5e2dfd318a29a4278b620)
+    #2 producer(void*) tests/buggy/producer_consumer_bad.cpp:27 (producer_consumer_bad+0xf78) (BuildId: fae20327e5e0e7618cb5e2dfd318a29a4278b620)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M0 acquired here while holding mutex M1 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 consumer(void*) tests/buggy/producer_consumer_bad.cpp:45 (producer_consumer_bad+0x1158) (BuildId: fae20327e5e0e7618cb5e2dfd318a29a4278b620)
+
+  Thread T2 (tid=492, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/producer_consumer_bad.cpp:55 (producer_consumer_bad+0x1254) (BuildId: fae20327e5e0e7618cb5e2dfd318a29a4278b620)
+
+  Thread T1 (tid=491, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/producer_consumer_bad.cpp:54 (producer_consumer_bad+0x1238) (BuildId: fae20327e5e0e7618cb5e2dfd318a29a4278b620)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) tests/buggy/producer_consumer_bad.cpp:17 in log_event
+==================
+ThreadSanitizer: reported 1 warnings

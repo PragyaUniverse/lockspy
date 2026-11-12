@@ -1,0 +1,10 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/tricky/gate_lock_safe  pid 1092  ran 0.001 s  (12099 lock events)
+threads 3, locks 3, lock-order edges 4
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 1 cycle(s)  (single thread 0, gate lock 1, read-read 0);  a naive detector would report 1 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   G                              2000         99        0.977      0.066        0.635      0.034
+  2   A                              2000          0        0.000      0.000        0.222      0.009
+  3   B                              2000          0        0.000      0.000        0.249      0.021
