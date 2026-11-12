@@ -3,3 +3,5 @@ results/tests/
 results/demo/
 *.o
 results/memcheck/
+core
+core.*
