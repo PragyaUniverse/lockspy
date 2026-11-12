@@ -4,12 +4,16 @@
 #   make demo     AB-BA demo + rendered lock graph (needs Graphviz for PNG/SVG)
 #   make bench    overhead + tool comparison (bench/run_bench.sh -> results/RESULTS.md)
 #   make memcheck run the test programs with LockSpy under Valgrind memcheck
+#
+# LockSpy needs Linux. On any other OS (macOS) every target except clean is run inside the
+# lockspy-dev Ubuntu container by bin/in-docker, so "make test" works the same everywhere.
 ifneq ($(shell uname -s),Linux)
-ifneq ($(MAKECMDGOALS),clean)
-$(error LockSpy needs Linux (LD_PRELOAD into ELF programs, /proc). On macOS run make inside the container: \
-docker run --rm -it --security-opt seccomp=unconfined -v "$$PWD":/lockspy lockspy-dev)
-endif
-endif
+.PHONY: all test bench demo memcheck clean
+all test bench demo memcheck:
+	@./bin/in-docker make $@
+clean:
+	rm -rf build results/tests results/demo
+else
 
 CXX      ?= g++
 CXXFLAGS := -std=c++17 -O2 -fPIC -Wall -Wextra -fno-omit-frame-pointer
@@ -55,3 +59,5 @@ memcheck: all
 
 clean:
 	rm -rf build results/tests results/demo
+
+endif

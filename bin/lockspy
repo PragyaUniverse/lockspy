@@ -24,14 +24,9 @@ USAGE
   exit 2
 }
 
+# LockSpy needs Linux. On macOS, re-run this same command inside the lockspy-dev container.
 if [ "$(uname -s)" != Linux ]; then
-  echo "lockspy: LockSpy needs Linux (LD_PRELOAD into ELF programs, /proc); this is $(uname -s)." >&2
-  cat >&2 <<'MSG'
-On macOS, start the Ubuntu container first and run lockspy inside it:
-  docker build -t lockspy-dev docker/          # once
-  docker run --rm -it --security-opt seccomp=unconfined -v "$PWD":/lockspy lockspy-dev
-MSG
-  exit 2
+  exec "$here/in-docker" /lockspy/bin/lockspy "$@"
 fi
 [ "${1:-}" = "run" ] || usage
 shift

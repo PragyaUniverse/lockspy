@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# in-docker - run a command inside the lockspy-dev Ubuntu container (for macOS, which has no
+# LD_PRELOAD for ELF programs and no /proc). The repository is mounted at /lockspy and the
+# command starts in the same sub-directory you are in, so relative paths keep working.
+#   bin/in-docker make test
+#   bin/in-docker ./bin/lockspy run -- ./build/tests/buggy/ab_ba
+# Used automatically by the Makefile and bin/lockspy when they are started outside Linux.
+set -euo pipefail
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+case "$PWD/" in
+  "$repo"/*) rel="${PWD#"$repo"}" ;;
+  *) echo "in-docker: run this from inside the repository ($repo)" >&2; exit 2 ;;
+esac
+command -v docker >/dev/null || { echo "in-docker: Docker is not installed (on macOS: brew install colima docker)" >&2; exit 2; }
+if ! docker info >/dev/null 2>&1; then
+  echo "in-docker: the Docker daemon is not running. Start it first, e.g.:  colima start" >&2
+  exit 2
+fi
+if ! docker image inspect lockspy-dev >/dev/null 2>&1; then
+  echo "in-docker: building the lockspy-dev image (first time only)..." >&2
+  docker build -t lockspy-dev "$repo/docker" >&2
+fi
+tty_flag=""
+[ -t 0 ] && [ -t 1 ] && tty_flag="-it"
+# seccomp=unconfined lets the benchmark run ThreadSanitizer under "setarch -R" (see bench/run_bench.sh)
+exec docker run --rm $tty_flag --security-opt seccomp=unconfined \
+  -v "$repo":/lockspy -w "/lockspy$rel" lockspy-dev "$@"

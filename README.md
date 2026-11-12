@@ -61,11 +61,13 @@ make bench       # LockSpy vs ThreadSanitizer vs Helgrind -> results/RESULTS.md
 make memcheck    # LockSpy itself under Valgrind
 ```
 
-On macOS (no `LD_PRELOAD`, no `/proc`), use the bundled Ubuntu container:
+On macOS (no `LD_PRELOAD` for ELF programs, no `/proc`) the same commands just work, as long as
+Docker is running (e.g. `colima start`): `make` and `bin/lockspy` notice they are not on Linux and
+re-run themselves inside the bundled Ubuntu container via `bin/in-docker` (the image is built the
+first time). To get a shell in the container instead:
 
 ```bash
-docker build -t lockspy-dev docker/
-docker run --rm -it --security-opt seccomp=unconfined -v "$PWD":/lockspy lockspy-dev
+bin/in-docker bash
 ```
 
 Use it on your own program (compile with `-g` for file:line, `-rdynamic` helps naming):

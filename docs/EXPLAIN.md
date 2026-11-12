@@ -136,8 +136,8 @@ calls the real unlock.
 
 ## 5. Five-minute live demo script
 
-(On macOS, first enter the Linux container: `docker build -t lockspy-dev docker/` and
-`docker run --rm -it -v "$PWD":/lockspy lockspy-dev`.)
+(On macOS the commands below run themselves inside the Ubuntu container through `bin/in-docker`;
+Docker must be running, e.g. `colima start`. The `xdg-open` step is Linux; on a Mac use `open`.)
 
 ```bash
 make                                                    # 1. build the library and the tests
