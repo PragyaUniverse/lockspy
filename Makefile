@@ -4,6 +4,13 @@
 #   make demo     AB-BA demo + rendered lock graph (needs Graphviz for PNG/SVG)
 #   make bench    overhead + tool comparison (bench/run_bench.sh -> results/RESULTS.md)
 #   make memcheck run the test programs with LockSpy under Valgrind memcheck
+ifneq ($(shell uname -s),Linux)
+ifneq ($(MAKECMDGOALS),clean)
+$(error LockSpy needs Linux (LD_PRELOAD into ELF programs, /proc). On macOS run make inside the container: \
+docker run --rm -it --security-opt seccomp=unconfined -v "$$PWD":/lockspy lockspy-dev)
+endif
+endif
+
 CXX      ?= g++
 CXXFLAGS := -std=c++17 -O2 -fPIC -Wall -Wextra -fno-omit-frame-pointer
 TESTFLAGS:= -std=c++17 -g -O0 -rdynamic -pthread -no-pie -Wall -Wextra

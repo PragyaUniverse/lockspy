@@ -4,6 +4,10 @@
 # LockSpy's global tables are intentionally never freed (they must outlive every destructor);
 # Valgrind lists them as "still reachable", which is not counted as an error.
 cd "$(dirname "$0")/.."
+if [ "$(uname -s)" != Linux ]; then
+  echo "$(basename "$0"): LockSpy needs Linux; on macOS run this inside the lockspy-dev container (see README)." >&2
+  exit 2
+fi
 command -v valgrind >/dev/null || { echo "valgrind not installed"; exit 0; }
 mkdir -p results/memcheck
 bad=0

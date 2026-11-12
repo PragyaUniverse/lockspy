@@ -11,6 +11,10 @@
 # entropy; we run it under "setarch -R" (ASLR off for that process). In Docker this needs
 # --security-opt seccomp=unconfined.
 cd "$(dirname "$0")/.."
+if [ "$(uname -s)" != Linux ]; then
+  echo "$(basename "$0"): LockSpy needs Linux; on macOS run this inside the lockspy-dev container (see README)." >&2
+  exit 2
+fi
 RUNS="${RUNS:-5}"
 mkdir -p results/bench build/tsan
 LIB=./build/libLockSpy.so

@@ -5,6 +5,10 @@
 # Prints a PASS/FAIL table; exits non-zero if any program does not match.
 # Extra: LOCKSPY_NAIVE=1 ./tests/run_tests.sh shows what a naive detector would report.
 cd "$(dirname "$0")/.."
+if [ "$(uname -s)" != Linux ]; then
+  echo "$(basename "$0"): LockSpy needs Linux; on macOS run this inside the lockspy-dev container (see README)." >&2
+  exit 2
+fi
 out_root=results/tests
 mkdir -p "$out_root"
 pass=0; fail=0
