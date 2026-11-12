@@ -130,7 +130,9 @@ A child writes its report files with its pid in the name.
 
 These are the classic ways an LD_PRELOAD lock tool breaks. Each one is handled in the code; the
 comments next to the fix say why. (Items 4 and 6 are hazards we designed around; item 4 only shows
-up on x86-64, and our measurements were taken on aarch64, where glibc has a single version.)
+up on x86-64. Our measurements were taken on aarch64, where glibc has a single version; the full
+test suite was also run on x86-64 Ubuntu 24.04 (emulated), where libc exports both
+`pthread_cond_wait@GLIBC_2.2.5` and `@GLIBC_2.3.2`, and passed 18/18, condvar tests included.)
 
 1. **Initialisation order.** Our constructor can run before C++ global constructors of other
    files in the same `.so`, and global destructors can run before our destructor writes the report.
