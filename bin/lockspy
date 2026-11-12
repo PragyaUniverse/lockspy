@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# lockspy - run an unmodified program under LockSpy.
+#   lockspy run [options] -- ./app args...
+# Options become LOCKSPY_* environment variables, then the program runs with
+# LD_PRELOAD=libLockSpy.so so the dynamic linker loads LockSpy before libc.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+lib="${LOCKSPY_LIB:-$here/../build/libLockSpy.so}"
+
+usage() {
+  cat <<'USAGE'
+usage: lockspy run [options] -- program [args...]
+  --format LIST       text,json,dot,html   (default: text)
+  --outdir DIR        where report files go (default: .)
+  --depth N           stack depth (default 8)
+  --top N             locks in the contention table (default 5)
+  --watchdog MS       live-deadlock check period, 0 = off (default 500)
+  --on-deadlock MODE  report | abort (default report)
+  --names FILE        lines "file.cpp:LINE = name" or "function = name" for lock names
+  --naive             turn off the false-positive filters (for comparison)
+  --trace             print every lock event
+  --quiet             no output on stderr (report files only)
+USAGE
+  exit 2
+}
+
+[ "${1:-}" = "run" ] || usage
+shift
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --format) export LOCKSPY_FORMAT="$2"; shift 2 ;;
+    --outdir) mkdir -p "$2"; export LOCKSPY_OUTDIR="$2"; shift 2 ;;
+    --depth) export LOCKSPY_STACK_DEPTH="$2"; shift 2 ;;
+    --top) export LOCKSPY_TOP="$2"; shift 2 ;;
+    --watchdog) export LOCKSPY_WATCHDOG_MS="$2"; shift 2 ;;
+    --on-deadlock) export LOCKSPY_ON_DEADLOCK="$2"; shift 2 ;;
+    --names) export LOCKSPY_NAMES="$2"; shift 2 ;;
+    --naive) export LOCKSPY_NAIVE=1; shift ;;
+    --trace) export LOCKSPY_TRACE=1; shift ;;
+    --quiet) export LOCKSPY_QUIET=1; shift ;;
+    --) shift; break ;;
+    *) usage ;;
+  esac
+done
+[ $# -gt 0 ] || usage
+[ -f "$lib" ] || { echo "lockspy: $lib not found, run 'make' first" >&2; exit 2; }
+LD_PRELOAD="$lib${LD_PRELOAD:+:$LD_PRELOAD}" exec "$@"

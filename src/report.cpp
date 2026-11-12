@@ -60,8 +60,10 @@ static std::string stacks_text(const std::vector<Step>& steps, const char* what)
     std::string s = "  Call stacks:\n";
     for (const Step& x : steps) {
         std::string start = thread_start(x.thread);
-        s += "    thread " + TN(x.thread) + " (T" + std::to_string(x.thread) +
-             (start.empty() ? "" : ", started in " + start + "()") + ") " + what + " " +
+        std::string id = "T" + std::to_string(x.thread), tn = TN(x.thread), extra;
+        if (tn != id) extra = id;
+        if (!start.empty()) extra += (extra.empty() ? "" : ", ") + std::string("started in ") + start + "()";
+        s += "    thread " + tn + (extra.empty() ? "" : " (" + extra + ")") + " " + what + " " +
              LN(x.want >= 0 ? x.want : x.held) + ":\n";
         std::vector<std::string> lines = stack_lines(x.stack);
         if (lines.empty()) lines.push_back(site_of(x.stack, x.pc));
@@ -72,7 +74,7 @@ static std::string stacks_text(const std::vector<Step>& steps, const char* what)
 
 // The four necessary conditions for deadlock, each with the evidence from this finding.
 static std::string coffman(const Finding& f) {
-    std::vector<int> locks;
+    std::vector<int> locks = f.order;  // list the locks in the suggested order when there is one
     for (const Step& x : f.steps) if (std::find(locks.begin(), locks.end(), x.want) == locks.end()) locks.push_back(x.want);
     std::string names, hw, cyc = TN(f.steps[0].thread);
     bool rw = false;
