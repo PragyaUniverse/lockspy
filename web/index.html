@@ -1,0 +1,498 @@
+<title>LockSpy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one 1080px column; the hero pairs the pitch with a live wait-for graph that forms the AB-BA cycle. */
+:root {
+  --bg: #f3f5f8;          /* cool paper */
+  --surface: #ffffff;
+  --ink: #16202e;
+  --muted: #5a6677;
+  --line: #d5dbe4;
+  --thread: #2f5fd0;      /* threads: steel blue */
+  --lock: #6b5a2e;        /* locks: brass */
+  --lock-fill: #f6efdc;
+  --cycle: #d1322b;       /* the cycle: same red as the DOT report */
+  --ok: #1f7a4d;
+  --code-bg: #0f1722;
+  --code-fg: #d9e1ec;
+  --code-dim: #7d8a9c;
+  --code-red: #ff7a70;
+  --code-green: #7fd6a2;
+  --code-blue: #8db4ff;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141c; --surface: #151d28; --ink: #e4e9f0; --muted: #94a0b2; --line: #273243;
+    --thread: #7fa2ff; --lock: #d9c38a; --lock-fill: #2a2617; --cycle: #ff6b61; --ok: #5fcf93;
+    --code-bg: #080c12; --code-fg: #d9e1ec; --code-dim: #6f7c8e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141c; --surface: #151d28; --ink: #e4e9f0; --muted: #94a0b2; --line: #273243;
+  --thread: #7fa2ff; --lock: #d9c38a; --lock-fill: #2a2617; --cycle: #ff6b61; --ok: #5fcf93;
+  --code-bg: #080c12; --code-fg: #d9e1ec; --code-dim: #6f7c8e;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.6 var(--body);
+}
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+section { padding-block: 56px; border-top: 1px solid var(--line); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.1; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 600; }
+h3 { font-size: 1.15rem; font-weight: 600; }
+p { margin: 0; }
+.lead { max-width: 62ch; color: var(--muted); font-size: 1.05rem; }
+.eyebrow {
+  font: 600 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+a { color: var(--thread); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--thread); outline-offset: 2px; }
+code, .mono { font-family: var(--mono); font-size: 0.9em; }
+
+/* ---------- top bar ---------- */
+.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 18px; }
+.brand { font: 700 1.2rem/1 var(--display); letter-spacing: 0.01em; display: flex; align-items: center; gap: 10px; }
+.brand svg { flex: none; }
+.top nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.92rem; }
+.top nav a { color: var(--muted); text-decoration: none; }
+.top nav a:hover { color: var(--ink); }
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding-block: 32px 56px; }
+.hero > * { min-width: 0; }
+.hero h1 { font-size: clamp(2.3rem, 5.2vw, 3.9rem); font-weight: 700; letter-spacing: -0.01em; }
+.hero h1 em { font-style: normal; color: var(--cycle); }
+.hero .lead { margin-top: 18px; }
+.cmd {
+  margin-top: 26px; display: flex; align-items: center; gap: 10px;
+  background: var(--code-bg); color: var(--code-fg); border-radius: 8px; padding: 12px 12px 12px 16px;
+  font: 0.88rem/1.4 var(--mono); max-width: 100%;
+}
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: 1em; }
+.cmd code::before { content: "$ "; color: var(--code-dim); }
+.btn {
+  font: 600 0.8rem/1 var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 6px; padding: 8px 12px; cursor: pointer;
+}
+.cmd .btn { background: transparent; color: var(--code-fg); border-color: #334155; flex: none; }
+.btn:hover { border-color: var(--muted); }
+.facts { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.9rem; color: var(--muted); }
+.facts b { color: var(--ink); font-weight: 600; }
+
+/* ---------- live graph ---------- */
+.graph {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+}
+.graph-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.graph svg { width: 100%; height: auto; display: block; margin-block: 6px; }
+.node-thread circle { fill: var(--surface); stroke: var(--thread); stroke-width: 2.5; }
+.node-thread text { fill: var(--thread); }
+.node-lock rect { fill: var(--lock-fill); stroke: var(--lock); stroke-width: 2.5; }
+.node-lock text { fill: var(--lock); }
+.node text { font: 600 18px var(--mono); text-anchor: middle; dominant-baseline: central; }
+.edge { stroke: var(--muted); stroke-width: 2.5; fill: none; opacity: 0; transition: opacity .35s, stroke .35s; }
+.edge.on { opacity: 1; }
+.edge.wait { stroke-dasharray: 6 5; }
+.edge-label { font: 12px var(--mono); fill: var(--muted); opacity: 0; transition: opacity .35s, fill .35s; }
+.edge-label.on { opacity: 1; }
+.graph.cycle .edge.on { stroke: var(--cycle); stroke-width: 3.5; }
+.graph.cycle .edge-label.on { fill: var(--cycle); }
+#arrow path { fill: var(--muted); }
+#arrow-red path { fill: var(--cycle); }
+.caption { min-height: 3.2em; font-size: 0.95rem; }
+.caption b { font-family: var(--mono); font-weight: 600; font-size: 0.9em; }
+.graph.cycle .caption { color: var(--cycle); }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.steps { display: flex; gap: 6px; margin-left: auto; }
+.steps span { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.steps span.on { background: var(--muted); }
+.graph.cycle .steps span.on { background: var(--cycle); }
+
+/* ---------- terminal ---------- */
+.term {
+  background: var(--code-bg); color: var(--code-fg); border-radius: 10px; overflow-x: auto;
+  font: 13px/1.55 var(--mono); padding: 18px 20px; margin-top: 24px;
+}
+.term pre { margin: 0; white-space: pre; }
+.t-dim { color: var(--code-dim); } .t-red { color: var(--code-red); font-weight: 600; }
+.t-green { color: var(--code-green); } .t-blue { color: var(--code-blue); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.split > * { min-width: 0; }
+.term-label { font: 600 0.75rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 24px; }
+.term-label + .term { margin-top: 8px; }
+
+/* ---------- pipeline ---------- */
+.pipe { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; }
+.stage { border-top: 3px solid var(--ink); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.stage .file { font: 0.78rem var(--mono); color: var(--muted); }
+.stage p { font-size: 0.93rem; color: var(--muted); }
+
+/* ---------- findings ---------- */
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 40px; margin-top: 28px; }
+.kinds > div { min-width: 0; }
+.kind-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }
+.kind-list li { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding-block: 11px; border-bottom: 1px solid var(--line); font-size: 0.94rem; }
+.kind-list li > * { min-width: 0; }
+.tag { font: 600 0.75rem/1.6 var(--mono); }
+.tag.bad { color: var(--cycle); } .tag.good { color: var(--ok); }
+.kind-list p { color: var(--muted); }
+
+/* ---------- results ---------- */
+.table-wrap { overflow-x: auto; margin-top: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font: 600 0.75rem/1.2 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; } th.num { text-align: right; }
+tr.us td { font-weight: 600; }
+tr.us td:first-child { color: var(--cycle); }
+.bars { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+.bar-row { display: grid; grid-template-columns: 140px 1fr 70px; gap: 12px; align-items: center; font-size: 0.92rem; }
+.bar-row > * { min-width: 0; }
+.bar-track { height: 14px; background: var(--line); border-radius: 3px; position: relative; }
+.bar-fill { position: absolute; inset: 0 auto 0 0; background: var(--muted); border-radius: 3px; }
+.bar-row.us .bar-fill { background: var(--cycle); }
+.bar-row .v { font: 600 0.9rem var(--mono); text-align: right; }
+.axis { display: grid; grid-template-columns: 140px 1fr 70px; gap: 12px; }
+.axis-ticks { position: relative; height: 18px; font: 0.72rem var(--mono); color: var(--muted); }
+.axis-ticks span { position: absolute; transform: translateX(-50%); }
+.note { margin-top: 22px; max-width: 70ch; color: var(--muted); font-size: 0.93rem; }
+.note b { color: var(--ink); }
+
+/* ---------- course map ---------- */
+.course { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 32px; margin-top: 20px; }
+.course div { padding-block: 14px; border-bottom: 1px solid var(--line); min-width: 0; }
+.course .eyebrow { display: block; margin-bottom: 6px; }
+.course p { font-size: 0.93rem; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-block: 32px 48px; color: var(--muted); font-size: 0.9rem; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+@media (max-width: 860px) {
+  .hero, .split, .kinds { grid-template-columns: 1fr; }
+  .pipe { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 520px) {
+  .pipe { grid-template-columns: 1fr; }
+  .kind-list li { grid-template-columns: 1fr; gap: 2px; }
+  .bar-row, .axis { grid-template-columns: 96px 1fr 56px; }
+  .top nav { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edge, .edge-label { transition: none; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <rect x="2" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+        <rect x="14" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M7 9V6a6 6 0 0 1 12 0v3" fill="none" stroke="var(--cycle)" stroke-width="2"/>
+      </svg>
+      LockSpy
+    </div>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#catches">What it catches</a>
+      <a href="#results">Results</a>
+      <a href="https://github.com/PragyaUniverse/lockspy">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Runtime deadlock detector · C/C++ · Linux</span>
+      <h1 style="margin-top:14px">Find the deadlock <em>before</em> it hangs.</h1>
+      <p class="lead">LockSpy loads into any unmodified pthread program with <code>LD_PRELOAD</code>. It watches every lock call, warns when two code paths take locks in opposite orders, catches the hang when it really happens, and tells you which lock order fixes it.</p>
+      <div class="cmd">
+        <code id="cmd-text">./bin/lockspy run -- ./build/tests/buggy/ab_ba</code>
+        <button class="btn" id="copy-btn" type="button">Copy</button>
+      </div>
+      <div class="facts">
+        <span><b>No recompile</b></span>
+        <span><b>0</b> false alarms on 16 test programs</span>
+        <span><b>~185 ns</b> per uncontended lock</span>
+      </div>
+    </div>
+
+    <figure class="graph" id="graph" style="margin:0">
+      <div class="graph-head">
+        <span class="eyebrow">Wait-for graph, live</span>
+        <span class="eyebrow" style="color:var(--thread)">○ thread</span>
+      </div>
+      <svg viewBox="0 0 420 300" role="img" aria-labelledby="graph-title">
+        <title id="graph-title">Threads P and Q and locks A and B forming a wait-for cycle</title>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
+          <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+        <g id="edges"></g>
+        <g class="node node-thread" transform="translate(70 150)"><circle r="30"/><text>P</text></g>
+        <g class="node node-thread" transform="translate(350 150)"><circle r="30"/><text>Q</text></g>
+        <g class="node node-lock" transform="translate(210 48)"><rect x="-30" y="-22" width="60" height="44" rx="7"/><text>B</text></g>
+        <g class="node node-lock" transform="translate(210 252)"><rect x="-30" y="-22" width="60" height="44" rx="7"/><text>A</text></g>
+      </svg>
+      <figcaption class="caption" id="caption" aria-live="polite"></figcaption>
+      <div class="controls">
+        <button class="btn" id="play-btn" type="button">Pause</button>
+        <button class="btn" id="step-btn" type="button">Next step</button>
+        <div class="steps" id="dots" aria-hidden="true"></div>
+      </div>
+    </figure>
+  </div>
+
+  <section id="demo">
+    <span class="eyebrow">Real output</span>
+    <h2 style="margin-top:10px">The run finished fine. LockSpy still found the bug.</h2>
+    <p class="lead" style="margin-top:12px">Thread P moves money A → B, thread Q moves B → A. In this run they never overlapped, so nothing hung. The lock-order graph still has the cycle A → B → A, so another interleaving will deadlock.</p>
+    <div class="term"><pre><span class="t-red">[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected</span>  <span class="t-dim">(#1, t=0.000s)</span>
+  Lock A -&gt; Lock B   taken by thread P in <span class="t-blue">worker_p()</span> <span class="t-dim">(ab_ba.cpp:21)</span>
+  Lock B -&gt; Lock A   taken by thread Q in <span class="t-blue">worker_q()</span> <span class="t-dim">(ab_ba.cpp:32)</span>
+  <span class="t-green">Suggested fix: acquire A before B in every thread.</span>
+    change worker_q() (ab_ba.cpp:32): it takes A while holding B
+  Coffman conditions (a deadlock needs all four):
+    <span class="t-green">✔</span> Mutual exclusion  A, B are mutexes, only one owner at a time
+    <span class="t-green">✔</span> Hold and wait     P holds A while requesting B; Q holds B while requesting A
+    <span class="t-green">✔</span> No preemption     a pthread lock is never taken away; only its owner can unlock it
+    <span class="t-green">✔</span> Circular wait     P -&gt; B -&gt; Q -&gt; A -&gt; P   <span class="t-dim">(possible; it did not have to happen in this run)</span></pre></div>
+
+    <div class="split">
+      <div>
+        <div class="term-label">Later, the same bug really hangs (<code>--hang</code>)</div>
+        <div class="term"><pre><span class="t-red">[LockSpy] LIVE DEADLOCK: 2 threads are blocked</span>
+  thread P holds Lock A and waits for Lock B
+    (owner: thread Q), blocked 1.00s
+  thread Q holds Lock B and waits for Lock A
+    (owner: thread P), blocked 1.00s
+  <span class="t-green">This hang was predicted at t=0.000s (finding #1).</span></pre></div>
+      </div>
+      <div>
+        <div class="term-label">Five philosophers, one cycle</div>
+        <div class="term"><pre>  Lock forks[0] -&gt; Lock forks[1]   phil-0
+  Lock forks[1] -&gt; Lock forks[2]   phil-1
+  ...
+  Lock forks[4] -&gt; Lock forks[0]   phil-4
+  <span class="t-green">Suggested fix: acquire the locks in the order
+  forks[0] &lt; forks[1] &lt; ... &lt; forks[4]</span>
+    change philosopher(): it takes forks[0]
+    while holding forks[4]</pre></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <span class="eyebrow">How it works</span>
+    <h2 style="margin-top:10px">Sit between the program and libc</h2>
+    <p class="lead" style="margin-top:12px">The dynamic linker searches <code>LD_PRELOAD</code> libraries first, so the program's <code>pthread_mutex_lock</code> calls land in LockSpy. Each wrapper records the event, then calls the real function found with <code>dlsym(RTLD_NEXT)</code>.</p>
+    <div class="pipe">
+      <div class="stage"><h3>Intercept</h3><span class="file">interpose.cpp</span><p>Wraps mutex, rwlock, condition-variable, semaphore and thread calls. Tries the lock first, so free locks cost one short bookkeeping step.</p></div>
+      <div class="stage"><h3>Record</h3><span class="file">recorder.cpp</span><p>Keeps each thread's held-lock set, thread names from <code>/proc</code>, and checks for relock, bad unlock and locks held at exit.</p></div>
+      <div class="stage"><h3>Analyse</h3><span class="file">lock_graph.cpp · waitfor.cpp</span><p>Edge H → L when L is requested while H is held; DFS finds cycles. A watchdog thread checks the live wait-for graph every 500 ms.</p></div>
+      <div class="stage"><h3>Report</h3><span class="file">report.cpp · symbolize.cpp</span><p>Names locks and call sites (<code>forks[3]</code>, <code>worker_q() (ab_ba.cpp:32)</code>) and writes text, JSON, a Graphviz heat map and HTML.</p></div>
+    </div>
+  </section>
+
+  <section id="catches">
+    <span class="eyebrow">What it catches</span>
+    <h2 style="margin-top:10px">Real bugs flagged, safe patterns left alone</h2>
+    <div class="kinds">
+      <div>
+        <h3>Reported</h3>
+        <ul class="kind-list">
+          <li><span class="tag bad">POTENTIAL DEADLOCK</span><p>Locks taken in inconsistent orders, even if this run didn't hang.</p></li>
+          <li><span class="tag bad">LIVE DEADLOCK</span><p>Threads stuck in a wait-for cycle right now. Optionally <code>abort()</code>.</p></li>
+          <li><span class="tag bad">RELOCK</span><p>Locking a non-recursive mutex the thread already holds.</p></li>
+          <li><span class="tag bad">BAD UNLOCK</span><p>Unlocking a mutex the thread does not hold.</p></li>
+          <li><span class="tag bad">HELD AT EXIT</span><p>A thread returns while still holding a lock.</p></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Suppressed as safe</h3>
+        <ul class="kind-list">
+          <li><span class="tag good">GATE LOCK</span><p>Both orders happen under a common lock G, so they can never overlap.</p></li>
+          <li><span class="tag good">TRYLOCK BACK-OFF</span><p>A trylock never blocks, so it adds no edge (the Linux lockdep rule).</p></li>
+          <li><span class="tag good">SINGLE THREAD</span><p>One thread takes both orders; a deadlock needs at least two.</p></li>
+          <li><span class="tag good">READ-READ</span><p>Readers of a rwlock never wait for each other.</p></li>
+          <li><span class="tag good">CONDITION WAIT</span><p><code>pthread_cond_wait</code> releases the mutex while sleeping; LockSpy mirrors that.</p></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <span class="eyebrow">Measured results</span>
+    <h2 style="margin-top:10px">Against ThreadSanitizer and Helgrind</h2>
+    <p class="lead" style="margin-top:12px">Same 16 programs for every tool: 9 with a bug, 7 correct or tricky. Ubuntu 24.04, g++ 13.3, 4-CPU aarch64 VM.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tool</th><th class="num">Caught</th><th class="num">Missed</th><th class="num">False alarms</th><th class="num">Precision</th><th class="num">Recall</th><th>Recompile</th></tr></thead>
+        <tbody>
+          <tr class="us"><td>LockSpy</td><td class="num">9</td><td class="num">0</td><td class="num">0</td><td class="num">1.00</td><td class="num">1.00</td><td>no</td></tr>
+          <tr><td>LockSpy without filters</td><td class="num">9</td><td class="num">0</td><td class="num">3</td><td class="num">0.75</td><td class="num">1.00</td><td>no</td></tr>
+          <tr><td>ThreadSanitizer</td><td class="num">6</td><td class="num">3</td><td class="num">2</td><td class="num">0.75</td><td class="num">0.67</td><td>yes</td></tr>
+          <tr><td>Valgrind Helgrind</td><td class="num">8</td><td class="num">1</td><td class="num">3</td><td class="num">0.73</td><td class="num">0.89</td><td>no</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:40px">Slowdown, geometric mean over 6 programs</h3>
+    <div class="bars" id="bars"></div>
+    <p class="note"><b>Where LockSpy loses:</b> on a tight loop of uncontended locks in 4 threads, ThreadSanitizer was faster (2.6× vs 6.8×), because LockSpy sends every thread's lock events through one private lock. On the other five programs LockSpy was faster. Full tables: <a href="https://github.com/PragyaUniverse/lockspy/blob/main/results/RESULTS.md">results/RESULTS.md</a>.</p>
+  </section>
+
+  <section id="course">
+    <span class="eyebrow">OS Lab 24B11CS312</span>
+    <h2 style="margin-top:10px">Where the course shows up</h2>
+    <div class="course">
+      <div><span class="eyebrow">Module I · Linux</span><p><code>LD_PRELOAD</code>, shell wrapper, <code>/proc/self/task/&lt;tid&gt;/comm</code></p></div>
+      <div><span class="eyebrow">Module II · Processes</span><p>Dynamic linking, <code>dlsym(RTLD_NEXT)</code>, <code>fork</code> handlers, <code>posix_spawn</code></p></div>
+      <div><span class="eyebrow">Module III · Threads</span><p>Per-thread held-lock sets, thread-local storage, a watchdog thread</p></div>
+      <div><span class="eyebrow">Module V · Synchronization</span><p>Mutex, rwlock, monitor, semaphore; philosophers, producer–consumer, readers–writers</p></div>
+      <div><span class="eyebrow">Module VI · Deadlocks</span><p>Coffman conditions, wait-for graph, DFS, prevention by lock ordering</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Prakhar Agnihotri · Shreesh Goyal · Unnati Joshi · Pragya Sumbly — JIIT, 2026–27</span>
+    <a href="https://github.com/PragyaUniverse/lockspy">github.com/PragyaUniverse/lockspy</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  // ---------- copy command ----------
+  var copyBtn = document.getElementById("copy-btn");
+  var cmdText = document.getElementById("cmd-text");
+  copyBtn.addEventListener("click", function () {
+    var text = cmdText.textContent;
+    function done() { copyBtn.textContent = "Copied"; setTimeout(function () { copyBtn.textContent = "Copy"; }, 1500); }
+    function fallback() {
+      var r = document.createRange(); r.selectNodeContents(cmdText);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      copyBtn.textContent = "Press ⌘C";
+    }
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+
+  // ---------- wait-for graph animation ----------
+  var NS = "http://www.w3.org/2000/svg";
+  var pos = { P: [70, 150], Q: [350, 150], B: [210, 48], A: [210, 252] };
+  var size = { P: 32, Q: 32, A: 34, B: 34 };          // distance from centre to node edge (approx.)
+  var edgesSpec = [
+    { from: "A", to: "P", label: "held by", wait: false },
+    { from: "B", to: "Q", label: "held by", wait: false },
+    { from: "P", to: "B", label: "waits for", wait: true },
+    { from: "Q", to: "A", label: "waits for", wait: true }
+  ];
+  var steps = [
+    { on: 0, text: "Two threads, two locks. Nothing is held yet." },
+    { on: 1, text: "<b>P</b> locks <b>A</b>." },
+    { on: 2, text: "<b>Q</b> locks <b>B</b>." },
+    { on: 3, text: "<b>P</b> asks for <b>B</b> and blocks: Q owns it." },
+    { on: 4, text: "<b>Q</b> asks for <b>A</b> and blocks. Circular wait: <b>P → B → Q → A → P</b>. LockSpy reports a LIVE DEADLOCK.", cycle: true }
+  ];
+  var g = document.getElementById("edges");
+  var lines = [], labels = [];
+  edgesSpec.forEach(function (e) {
+    var a = pos[e.from], b = pos[e.to];
+    var dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy);
+    var ux = dx / len, uy = dy / len;
+    var x1 = a[0] + ux * size[e.from], y1 = a[1] + uy * size[e.from];
+    var x2 = b[0] - ux * (size[e.to] + 4), y2 = b[1] - uy * (size[e.to] + 4);
+    var line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("class", "edge" + (e.wait ? " wait" : ""));
+    line.setAttribute("marker-end", "url(#arrow)");
+    g.appendChild(line); lines.push(line);
+    var t = document.createElementNS(NS, "text");
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    var off = 16;                                         // push the label outside the diamond
+    var cx = 210, cy = 150, ox = mx - cx, oy = my - cy, ol = Math.sqrt(ox * ox + oy * oy) || 1;
+    t.setAttribute("x", mx + ox / ol * off); t.setAttribute("y", my + oy / ol * off);
+    t.setAttribute("text-anchor", "middle"); t.setAttribute("dominant-baseline", "central");
+    t.setAttribute("class", "edge-label");
+    t.textContent = e.label;
+    g.appendChild(t); labels.push(t);
+  });
+
+  var graph = document.getElementById("graph");
+  var caption = document.getElementById("caption");
+  var dots = document.getElementById("dots");
+  steps.forEach(function () { dots.appendChild(document.createElement("span")); });
+  var cur = 0;
+  function show(i) {
+    cur = i;
+    var s = steps[i];
+    lines.forEach(function (l, k) {
+      var on = k < s.on;
+      l.classList.toggle("on", on);
+      l.setAttribute("marker-end", s.cycle ? "url(#arrow-red)" : "url(#arrow)");
+    });
+    labels.forEach(function (l, k) { l.classList.toggle("on", k < s.on); });
+    graph.classList.toggle("cycle", !!s.cycle);
+    caption.innerHTML = s.text;
+    Array.prototype.forEach.call(dots.children, function (d, k) { d.classList.toggle("on", k <= i); });
+  }
+
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var playing = !reduce, timer = null;
+  var playBtn = document.getElementById("play-btn");
+  function tick() { show((cur + 1) % steps.length); schedule(); }
+  function schedule() {
+    clearTimeout(timer);
+    if (playing) timer = setTimeout(tick, steps[cur].cycle ? 3800 : 1500);
+  }
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pause" : "Play";
+    schedule();
+  });
+  document.getElementById("step-btn").addEventListener("click", function () {
+    playing = false; playBtn.textContent = "Play"; clearTimeout(timer);
+    show((cur + 1) % steps.length);
+  });
+  playBtn.textContent = playing ? "Pause" : "Play";
+  show(reduce ? steps.length - 1 : 0);   // reduced motion: rest on the finished cycle
+  schedule();
+
+  // ---------- slowdown bars (log scale, 1x to 200x) ----------
+  var data = [
+    { name: "LockSpy", v: 3.1, us: true },
+    { name: "ThreadSanitizer", v: 4.3 },
+    { name: "Helgrind", v: 122.5 }
+  ];
+  var max = 200, lg = function (x) { return Math.log(x) / Math.log(max); };
+  var bars = document.getElementById("bars");
+  data.forEach(function (d) {
+    var row = document.createElement("div");
+    row.className = "bar-row" + (d.us ? " us" : "");
+    row.innerHTML = '<span>' + d.name + '</span><div class="bar-track"><div class="bar-fill" style="width:' +
+      (lg(d.v) * 100).toFixed(1) + '%"></div></div><span class="v">' + d.v.toFixed(1) + '×</span>';
+    bars.appendChild(row);
+  });
+  var axis = document.createElement("div");
+  axis.className = "axis";
+  var ticks = [1, 2, 5, 10, 20, 50, 100, 200].map(function (t) {
+    return '<span style="left:' + (lg(t) * 100).toFixed(1) + '%">' + t + '×</span>';
+  }).join("");
+  axis.innerHTML = '<span></span><div class="axis-ticks">' + ticks + '</div><span class="axis-note eyebrow" style="text-align:right">log</span>';
+  bars.appendChild(axis);
+})();
+</script>
