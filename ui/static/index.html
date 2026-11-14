@@ -34,6 +34,55 @@
 </header>
 
 <main class="page">
+  <section class="card intro" id="intro" aria-labelledby="intro-title">
+    <button class="intro-hide" id="intro-hide" type="button" aria-label="Hide the introduction">Hide intro ✕</button>
+    <div class="intro-grid">
+      <div class="intro-text">
+        <div class="crumb">What is this?</div>
+        <h1 id="intro-title">LockSpy finds deadlocks in multithreaded programs before they freeze</h1>
+        <p>Threads use <b>locks</b> so only one of them touches shared data at a time. If thread P takes lock A then B,
+          while thread Q takes B then A, each can end up waiting for the other forever. That's a <b>deadlock</b>,
+          and it only happens when the timing is unlucky, so it can slip past every test.</p>
+        <p>LockSpy watches a program's locks while it runs, without changing or recompiling the program, and
+          warns you about deadlocks, lock mistakes and slow locks. For each deadlock it tells you how to fix it.</p>
+        <ol class="intro-steps">
+          <li><b>Listen in.</b> Loaded with <code>LD_PRELOAD</code>, LockSpy sees every <code>pthread_mutex_lock</code>
+            and <code>unlock</code> before the system library does.</li>
+          <li><b>Draw the lock order.</b> "Took B while holding A" becomes an arrow A → B. A circle of arrows means a
+            <span class="tag bad">Potential deadlock</span>, even if this run didn't freeze.</li>
+          <li><b>Watch for freezes.</b> A watchdog checks every half second who is stuck waiting for whom. A circle
+            there is a <span class="tag bad">Live deadlock</span>.</li>
+        </ol>
+      </div>
+      <figure class="intro-fig">
+        <svg viewBox="0 0 300 210" role="img" aria-label="Thread P holds lock A and waits for B; thread Q holds B and waits for A">
+          <defs><marker id="ia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ia-head"/></marker></defs>
+          <path class="ia-line" d="M84 70 L196 70" marker-end="url(#ia)"/>
+          <path class="ia-line" d="M216 140 L104 140" marker-end="url(#ia)"/>
+          <path class="ia-line wait" d="M60 92 L60 118" marker-end="url(#ia)"/>
+          <path class="ia-line wait" d="M240 118 L240 92" marker-end="url(#ia)"/>
+          <g class="ia-thread"><circle cx="60" cy="70" r="22"/><text x="60" y="70">P</text></g>
+          <g class="ia-thread"><circle cx="240" cy="140" r="22"/><text x="240" y="140">Q</text></g>
+          <g class="ia-lock"><rect x="196" y="52" width="88" height="36" rx="8"/><text x="240" y="70">lock B</text></g>
+          <g class="ia-lock"><rect x="16" y="122" width="88" height="36" rx="8"/><text x="60" y="140">lock A</text></g>
+          <text class="ia-cap" x="140" y="60">P wants B</text>
+          <text class="ia-cap" x="160" y="160">Q wants A</text>
+          <text class="ia-cap small" x="32" y="108">holds</text>
+          <text class="ia-cap small" x="268" y="108">holds</text>
+        </svg>
+        <figcaption>P holds A and waits for B; Q holds B and waits for A. Neither can move.</figcaption>
+      </figure>
+    </div>
+    <div class="intro-how">
+      <b>Using this page:</b> all tests run automatically when it opens. The cards show the score.
+      Click a program on the left to see its <b>lock graph</b> (red circle = deadlock), the <b>report</b> with the
+      suggested fix, which locks threads waited on, and the code lines involved. Try <b>ab_ba</b> and
+      <b>philosophers_naive</b> first. Turn on <b>Naive mode</b> and re-run a <i>tricky</i> program to see the false
+      alarms LockSpy normally filters out.
+    </div>
+  </section>
+  <button class="intro-show" id="intro-show" type="button" hidden>What is LockSpy?</button>
+
   <section class="kpis" aria-label="Summary">
     <div class="kpi" id="kpi-bugs">
       <div class="kpi-label">Bugs caught</div>

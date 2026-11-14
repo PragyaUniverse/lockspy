@@ -390,6 +390,16 @@ async function loadPrograms() {
   return r;
 }
 
+// intro panel: hide/show, remembered in this browser only
+function showIntro(on) {
+  $("#intro").hidden = !on;
+  $("#intro-show").hidden = on;
+  try { localStorage.setItem("lockspy-intro", on ? "1" : "0"); } catch (e) { /* storage blocked: fine */ }
+}
+$("#intro-hide").addEventListener("click", () => showIntro(false));
+$("#intro-show").addEventListener("click", () => showIntro(true));
+try { if (localStorage.getItem("lockspy-intro") === "0") showIntro(false); } catch (e) { /* ignore */ }
+
 $("#run-btn").addEventListener("click", runSelected);
 $("#runall-btn").addEventListener("click", runAll);
 $("#build-btn").addEventListener("click", rebuild);

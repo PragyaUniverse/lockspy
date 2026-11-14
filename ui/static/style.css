@@ -59,6 +59,33 @@ code { font-family: var(--mono); font-size: .88em; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .card-head h2 { font-size: 15px; font-weight: 600; }
 
+/* ---------- intro ---------- */
+.intro { position: relative; padding: 22px 24px 18px; }
+.intro .crumb { text-transform: none; }
+.intro-grid { display: grid; grid-template-columns: 1fr 320px; gap: 28px; align-items: center; }
+.intro-grid > * { min-width: 0; }
+.intro h1 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; margin: 4px 0 10px; max-width: 30ch; text-wrap: balance; }
+.intro-text p { color: var(--ink-2); max-width: 70ch; margin-bottom: 8px; }
+.intro-steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink-2); max-width: 74ch; }
+.intro-steps li::marker { color: var(--accent); font-weight: 700; }
+.intro-steps .tag { vertical-align: 1px; }
+.intro-fig { margin: 0; background: var(--line-2); border-radius: 12px; padding: 12px 12px 10px; }
+.intro-fig svg { display: block; width: 100%; height: auto; }
+.intro-fig figcaption { font-size: 12px; color: var(--muted); text-align: center; margin-top: 4px; }
+.ia-line { stroke: var(--red); stroke-width: 2.4; fill: none; }
+.ia-line.wait { stroke: var(--muted); stroke-width: 1.6; stroke-dasharray: 4 4; }
+.ia-head { fill: var(--red); }
+.ia-thread circle { fill: var(--card); stroke: var(--thread); stroke-width: 2.4; }
+.ia-thread text { fill: var(--thread); font: 700 16px var(--mono); text-anchor: middle; dominant-baseline: central; }
+.ia-lock rect { fill: var(--lock-soft); stroke: var(--lock); stroke-width: 1.6; }
+.ia-lock text { fill: var(--lock); font: 600 13px var(--mono); text-anchor: middle; dominant-baseline: central; }
+.ia-cap { fill: var(--red); font: 600 11.5px var(--font); text-anchor: middle; }
+.ia-cap.small { fill: var(--muted); font-weight: 500; font-size: 10.5px; }
+.intro-how { margin-top: 16px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); font-size: 13px; color: var(--ink-2); }
+.intro-hide { position: absolute; top: 14px; right: 16px; border: 0; background: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.intro-hide:hover { background: var(--line-2); color: var(--ink); }
+.intro-show { justify-self: start; border: 1px solid var(--line); background: var(--card); color: var(--accent); font-weight: 600; font-size: 13px; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+
 /* ---------- KPI cards ---------- */
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 16px 18px; min-width: 0; }
@@ -212,6 +239,8 @@ h4 { font-size: 13px; font-weight: 600; margin: 20px 0 6px; }
 .axis span { position: absolute; transform: translateX(-50%); }
 
 @media (max-width: 1000px) {
+  .intro-grid { grid-template-columns: 1fr; }
+  .intro-fig { max-width: 360px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .work, .bench { grid-template-columns: 1fr; }
   .plist { max-height: 360px; }
