@@ -23,6 +23,10 @@
     </div>
     <div class="top-actions">
       <span class="status" id="status">Starting…</span>
+      <button class="btn ghost" id="guide-btn" type="button">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.8" r=".9" fill="currentColor"/></svg>
+        Guide
+      </button>
       <button class="btn ghost" id="build-btn" type="button">Rebuild</button>
       <button class="btn primary" id="runall-btn" type="button">
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
@@ -74,6 +78,7 @@
       </figure>
     </div>
     <div class="intro-how">
+      <button class="btn primary intro-tour" id="intro-tour" type="button">Take the guided tour (1 min) →</button>
       <b>Using this page:</b> all tests run automatically when it opens. The cards show the score.
       Click a program on the left to see its <b>lock graph</b> (red circle = deadlock), the <b>report</b> with the
       suggested fix, which locks threads waited on, and the code lines involved. Try <b>ab_ba</b> and
@@ -167,6 +172,21 @@
     </div>
   </section>
 </main>
+<div class="tour" id="tour" hidden>
+  <div class="tour-spot" id="tour-spot"></div>
+  <div class="tour-pop" id="tour-pop" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <div class="tour-step" id="tour-step"></div>
+    <h3 id="tour-title"></h3>
+    <div class="tour-body" id="tour-body"></div>
+    <div class="tour-nav">
+      <button class="btn ghost" id="tour-skip" type="button">Close</button>
+      <span class="tour-dots" id="tour-dots"></span>
+      <button class="btn ghost" id="tour-back" type="button">Back</button>
+      <button class="btn primary" id="tour-next" type="button">Next</button>
+    </div>
+  </div>
+</div>
 <script src="/app.js"></script>
+<script src="/tour.js"></script>
 </body>
 </html>
