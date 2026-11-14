@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LockSpy Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true">
+      <rect x="2" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <rect x="14" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M7 9V6a6 6 0 0 1 12 0v3" fill="none" stroke="var(--red)" stroke-width="2"/>
+    </svg>
+    <span>LockSpy <b>Studio</b></span>
+  </div>
+  <div class="bar-actions">
+    <span class="status" id="status">Loading…</span>
+    <button class="btn" id="build-btn" type="button">Build</button>
+    <button class="btn primary" id="runall-btn" type="button">Run all tests</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="side" aria-label="Programs">
+    <div id="prog-list"></div>
+    <div class="custom">
+      <div class="side-title">Your own program</div>
+      <label for="custom-path">Path inside the repo</label>
+      <input id="custom-path" type="text" placeholder="./build/tests/buggy/ab_ba" spellcheck="false">
+      <label for="custom-args">Arguments</label>
+      <input id="custom-args" type="text" placeholder="--hang" spellcheck="false">
+      <button class="btn" id="custom-btn" type="button">Run it</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- single-program view -->
+    <section id="view-program">
+      <div class="prog-head">
+        <div class="prog-title">
+          <span class="group-tag" id="p-group"></span>
+          <h1 id="p-name">Pick a program</h1>
+          <p id="p-desc" class="desc"></p>
+          <div class="expect" id="p-expect"></div>
+        </div>
+        <div class="run-box">
+          <div class="opts">
+            <label class="check"><input type="checkbox" id="opt-naive"> Naive mode <span class="hint">(filters off)</span></label>
+            <label class="num-opt" for="opt-watchdog">Watchdog <input id="opt-watchdog" type="number" min="100" max="5000" step="100" value="500"> ms</label>
+          </div>
+          <button class="btn primary big" id="run-btn" type="button">Run under LockSpy</button>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict" hidden></div>
+
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="findings" class="on">Findings</button>
+        <button role="tab" data-tab="graph">Lock graph</button>
+        <button role="tab" data-tab="contention">Contention</button>
+        <button role="tab" data-tab="source">Source</button>
+        <button role="tab" data-tab="output">Raw output</button>
+      </nav>
+
+      <div class="tab-body" id="tab-findings"></div>
+      <div class="tab-body" id="tab-graph" hidden></div>
+      <div class="tab-body" id="tab-contention" hidden></div>
+      <div class="tab-body" id="tab-source" hidden></div>
+      <div class="tab-body" id="tab-output" hidden></div>
+    </section>
+
+    <!-- all-tests view -->
+    <section id="view-all" hidden>
+      <div class="prog-head">
+        <div class="prog-title">
+          <span class="group-tag">suite</span>
+          <h1>All tests</h1>
+          <p class="desc">Every program in <code>tests/expected.csv</code>, run under LockSpy. A run passes when the finding types LockSpy reports equal the expected ones.</p>
+        </div>
+        <div class="run-box"><div class="score" id="score"></div></div>
+      </div>
+      <div class="table-wrap"><table class="suite" id="suite-table">
+        <thead><tr><th>Program</th><th>Expected</th><th>Reported</th><th class="num">Time</th><th>Result</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

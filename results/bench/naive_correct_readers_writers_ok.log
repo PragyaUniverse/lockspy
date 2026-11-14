@@ -1,0 +1,9 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/correct/readers_writers_ok  pid 965  ran 0.001 s  (7131 lock events)
+threads 6, locks 2, lock-order edges 1
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   db_lock                        2533         59        0.949      0.363        0.554      0.015
+  2   stats_lock                     1003          0        0.000      0.000        0.075      0.008

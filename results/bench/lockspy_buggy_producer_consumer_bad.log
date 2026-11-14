@@ -1,0 +1,31 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.003s)
+  Lock buf_lock -> Lock log_lock   taken by thread T2 in log_event() (producer_consumer_bad.cpp:17)
+  Lock log_lock -> Lock buf_lock   taken by thread T1 in consumer() (producer_consumer_bad.cpp:45)
+  Suggested fix: acquire buf_lock before log_lock in every thread.
+    change consumer() (producer_consumer_bad.cpp:45): it takes buf_lock while holding log_lock
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  buf_lock, log_lock are mutexes, only one owner at a time
+    ✔ Hold and wait     T2 holds buf_lock while requesting log_lock; T1 holds log_lock while requesting buf_lock
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     T2 -> log_lock -> T1 -> buf_lock -> T2   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread T2 (started in producer()) requesting log_lock:
+      #0 log_event() (producer_consumer_bad.cpp:17)
+      #1 producer() (producer_consumer_bad.cpp:27)
+    thread T1 (started in consumer()) requesting buf_lock:
+      #0 consumer() (producer_consumer_bad.cpp:45)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/producer_consumer_bad  pid 448  ran 0.008 s  (8045 lock events)
+threads 3, locks 2, lock-order edges 2
+findings: 1 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.003s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {buf_lock, log_lock}  order: buf_lock < log_lock
+    violated in consumer() (producer_consumer_bad.cpp:45): takes buf_lock while holding log_lock
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   buf_lock                       4001          1        0.000      0.000        6.594      5.089
+  2   log_lock                         21          0        0.000      0.000        5.101      5.096
+condition variable not_full: 249 waits, 2.143 ms asleep (max 0.021 ms)
+condition variable not_empty: 250 waits, 2.184 ms asleep (max 0.037 ms)

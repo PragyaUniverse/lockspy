@@ -1,0 +1,37 @@
+==658== Helgrind, a thread error detector
+==658== Copyright (C) 2007-2017, and GNU GPL'd, by OpenWorks LLP et al.
+==658== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==658== Command: ./build/tests/buggy/recursive_lock
+==658== 
+==658== ---Thread-Announcement------------------------------------------
+==658== 
+==658== Thread #1 is the program's root thread
+==658== 
+==658== ----------------------------------------------------------------
+==658== 
+==658== Thread #1: Attempt to re-lock a non-recursive lock I already hold
+==658==    at 0x488F8A4: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==658==    by 0x400D27: main (recursive_lock.cpp:31)
+==658==  Lock was previously acquired
+==658==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==658==    by 0x400D1B: main (recursive_lock.cpp:30)
+==658== 
+==658== ----------------------------------------------------------------
+==658== 
+==658== Thread #1's call to pthread_mutex_lock failed
+==658==    with error code 35 (EDEADLK: Resource deadlock would occur)
+==658==    at 0x488F9A0: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==658==    by 0x400D27: main (recursive_lock.cpp:31)
+==658== 
+==658== ----------------------------------------------------------------
+==658== 
+==658== Thread #1: Attempt to re-lock a non-recursive lock I already hold
+==658==    at 0x488F8A4: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==658==    by 0x400C3B: inner(pthread_mutex_t*) (recursive_lock.cpp:11)
+==658==    by 0x400C6B: outer(pthread_mutex_t*) (recursive_lock.cpp:15)
+==658==    by 0x400D6F: main (recursive_lock.cpp:36)
+==658==  Lock was previously acquired
+==658==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==658==    by 0x400C63: outer(pthread_mutex_t*) (recursive_lock.cpp:14)
+==658==    by 0x400D6F: main (recursive_lock.cpp:36)
+==658== 

@@ -1,0 +1,15 @@
+[LockSpy] MISUSE: thread exited while holding a lock  (#1, t=0.000s)
+  thread T3 exited still holding Lock config_lock, taken in reload_config() (lock_held_at_exit.cpp:13)
+  Any thread that locks it later will block forever.
+  Call stacks:
+    thread T3 (started in reload_config()) holding config_lock:
+      #0 reload_config() (lock_held_at_exit.cpp:13)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/lock_held_at_exit  pid 756  ran 0.003 s  (5 lock events)
+threads 4, locks 1, lock-order edges 0
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 1 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+  #1 HELD_AT_EXIT at t=0.000s
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   config_lock                       3          0        0.000      0.000        0.008      0.008

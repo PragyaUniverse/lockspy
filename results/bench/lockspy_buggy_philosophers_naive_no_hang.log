@@ -1,0 +1,40 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.001s)
+  Lock forks[0] -> Lock forks[1]   taken by thread phil-0 in philosopher() (philosophers_naive.cpp:26)
+  Lock forks[1] -> Lock forks[2]   taken by thread phil-1 in philosopher() (philosophers_naive.cpp:26)
+  Lock forks[2] -> Lock forks[3]   taken by thread phil-2 in philosopher() (philosophers_naive.cpp:26)
+  Lock forks[3] -> Lock forks[4]   taken by thread phil-3 in philosopher() (philosophers_naive.cpp:26)
+  Lock forks[4] -> Lock forks[0]   taken by thread phil-4 in philosopher() (philosophers_naive.cpp:26)
+  Suggested fix: acquire the locks in the order forks[0] < forks[1] < forks[2] < forks[3] < forks[4] in every thread.
+    change philosopher() (philosophers_naive.cpp:26): it takes forks[0] while holding forks[4]
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  forks[0], forks[1], forks[2], forks[3], forks[4] are mutexes, only one owner at a time
+    ✔ Hold and wait     phil-0 holds forks[0] while requesting forks[1]; phil-1 holds forks[1] while requesting forks[2]; phil-2 holds forks[2] while requesting forks[3]; phil-3 holds forks[3] while requesting forks[4]; phil-4 holds forks[4] while requesting forks[0]
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     phil-0 -> forks[1] -> phil-1 -> forks[2] -> phil-2 -> forks[3] -> phil-3 -> forks[4] -> phil-4 -> forks[0] -> phil-0   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread phil-0 (T1, started in philosopher()) requesting forks[1]:
+      #0 philosopher() (philosophers_naive.cpp:26)
+    thread phil-1 (T2, started in philosopher()) requesting forks[2]:
+      #0 philosopher() (philosophers_naive.cpp:26)
+    thread phil-2 (T3, started in philosopher()) requesting forks[3]:
+      #0 philosopher() (philosophers_naive.cpp:26)
+    thread phil-3 (T4, started in philosopher()) requesting forks[4]:
+      #0 philosopher() (philosophers_naive.cpp:26)
+    thread phil-4 (T5, started in philosopher()) requesting forks[0]:
+      #0 philosopher() (philosophers_naive.cpp:26)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/philosophers_naive  pid 369  ran 0.006 s  (20 lock events)
+threads 6, locks 5, lock-order edges 5
+findings: 1 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.001s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {forks[0], forks[1], forks[2], forks[3], forks[4]}  order: forks[0] < forks[1] < forks[2] < forks[3] < forks[4]
+    violated in philosopher() (philosophers_naive.cpp:26): takes forks[0] while holding forks[4]
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   forks[0]                          2          0        0.000      0.000        5.189      5.164
+  2   forks[1]                          2          0        0.000      0.000        0.017      0.010
+  3   forks[2]                          2          0        0.000      0.000        0.015      0.008
+  4   forks[3]                          2          0        0.000      0.000        0.011      0.006
+  5   forks[4]                          2          0        0.000      0.000        5.170      5.166

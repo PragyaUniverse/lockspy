@@ -1,0 +1,12 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/correct/philosophers_ordered  pid 808  ran 0.004 s  (40804 lock events)
+threads 6, locks 5, lock-order edges 5
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   forks[0]                       4000        290        3.021      1.791        2.789      1.176
+  2   forks[1]                       4000        173        1.882      1.060        1.932      0.451
+  3   forks[2]                       4000        164        1.254      0.443        1.130      0.036
+  4   forks[3]                       4000        177        0.405      0.030        0.586      0.045
+  5   forks[4]                       4000          0        0.000      0.000        0.214      0.004

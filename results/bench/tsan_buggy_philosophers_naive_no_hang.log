@@ -1,0 +1,49 @@
+==================
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=410)
+  Cycle in lock order graph: M0 (0xaaaaaaac0028) => M1 (0xaaaaaaac0058) => M2 (0xaaaaaaac0088) => M3 (0xaaaaaaac00b8) => M4 (0xaaaaaaac00e8) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 philosopher(void*) tests/buggy/philosophers_naive.cpp:26 (philosophers_naive+0x1104) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M2 acquired here while holding mutex M1 in thread T2:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 philosopher(void*) tests/buggy/philosophers_naive.cpp:26 (philosophers_naive+0x1104) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Mutex M3 acquired here while holding mutex M2 in thread T3:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 philosopher(void*) tests/buggy/philosophers_naive.cpp:26 (philosophers_naive+0x1104) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Mutex M4 acquired here while holding mutex M3 in thread T4:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 philosopher(void*) tests/buggy/philosophers_naive.cpp:26 (philosophers_naive+0x1104) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Mutex M0 acquired here while holding mutex M4 in thread T5:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 philosopher(void*) tests/buggy/philosophers_naive.cpp:26 (philosophers_naive+0x1104) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Thread T1 'phil-0' (tid=412, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/philosophers_naive.cpp:39 (philosophers_naive+0x1310) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Thread T2 'phil-1' (tid=413, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/philosophers_naive.cpp:39 (philosophers_naive+0x1310) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Thread T3 'phil-2' (tid=414, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/philosophers_naive.cpp:39 (philosophers_naive+0x1310) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Thread T4 'phil-3' (tid=415, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/philosophers_naive.cpp:39 (philosophers_naive+0x1310) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+  Thread T5 'phil-4' (tid=416, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 main tests/buggy/philosophers_naive.cpp:39 (philosophers_naive+0x1310) (BuildId: 823ac6921459425c1f9cccc4d92e15f2b0b2be26)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) tests/buggy/philosophers_naive.cpp:26 in philosopher(void*)
+==================
+ThreadSanitizer: reported 1 warnings

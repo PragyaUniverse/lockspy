@@ -1,0 +1,26 @@
+==================
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=254)
+  Cycle in lock order graph: M0 (0xaaaaaaac0030) => M1 (0xaaaaaaac0060) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in thread T1:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 worker_p(void*) tests/buggy/ab_ba.cpp:21 (ab_ba+0xf98) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M0 acquired here while holding mutex M1 in thread T2:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1341 (libtsan.so.2+0x5cc14) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 worker_q(void*) tests/buggy/ab_ba.cpp:32 (ab_ba+0x10b4) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+
+  Thread T1 'P' (tid=256, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 run tests/buggy/ab_ba.cpp:42 (ab_ba+0x11c0) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+    #2 main tests/buggy/ab_ba.cpp:53 (ab_ba+0x1314) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+
+  Thread T2 'Q' (tid=257, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x5dd98) (BuildId: dc0d657f42587fea53114ce058dbdfe5834e0205)
+    #1 run tests/buggy/ab_ba.cpp:44 (ab_ba+0x1208) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+    #2 main tests/buggy/ab_ba.cpp:53 (ab_ba+0x1314) (BuildId: 0ae0abea9a2f0b5d4d14707967ec6bd8e02d4ce3)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) tests/buggy/ab_ba.cpp:21 in worker_p(void*)
+==================

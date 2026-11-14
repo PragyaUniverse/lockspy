@@ -1,0 +1,10 @@
+==================== LockSpy summary ====================
+program /lockspy/build/tests/correct/consistent_order  pid 1039  ran 0.002 s  (20545 lock events)
+threads 5, locks 3, lock-order edges 3
+findings: 0 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 0 cycle(s)
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   A                              4000        545        3.728      0.096        1.184      0.017
+  2   B                              4000          0        0.000      0.000        0.607      0.008
+  3   C                              2000          0        0.000      0.000        0.136      0.003

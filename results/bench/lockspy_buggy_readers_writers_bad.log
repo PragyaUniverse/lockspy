@@ -1,0 +1,28 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.001s)
+  Lock db_lock -> Lock stats_lock   taken by thread T1 in writer() (readers_writers_bad.cpp:18)
+  Lock stats_lock -> Lock db_lock   taken by thread T6 in auditor() (readers_writers_bad.cpp:41)
+  Suggested fix: acquire db_lock before stats_lock in every thread.
+    change auditor() (readers_writers_bad.cpp:41): it takes db_lock while holding stats_lock
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  db_lock, stats_lock: a writer excludes everyone, only one owner at a time
+    ✔ Hold and wait     T1 holds db_lock (write) while requesting stats_lock; T6 holds stats_lock while requesting db_lock (read)
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     T1 -> stats_lock -> T6 -> db_lock -> T1   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread T1 (started in writer()) requesting stats_lock:
+      #0 writer() (readers_writers_bad.cpp:18)
+    thread T6 (started in auditor()) requesting db_lock:
+      #0 auditor() (readers_writers_bad.cpp:41)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/readers_writers_bad  pid 521  ran 0.004 s  (7093 lock events)
+threads 7, locks 2, lock-order edges 2
+findings: 1 potential deadlock, 0 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.001s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {db_lock, stats_lock}  order: db_lock < stats_lock
+    violated in auditor() (readers_writers_bad.cpp:41): takes db_lock while holding stats_lock
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   db_lock                        2501         82        1.051      0.335        3.818      3.275
+  2   stats_lock                     1004          1        0.009      0.009        3.347      3.278

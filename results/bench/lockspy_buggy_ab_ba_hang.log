@@ -1,0 +1,47 @@
+[LockSpy] POTENTIAL DEADLOCK: lock-order cycle detected  (#1, t=0.000s)
+  Lock A -> Lock B   taken by thread P in worker_p() (ab_ba.cpp:21)
+  Lock B -> Lock A   taken by thread Q in worker_q() (ab_ba.cpp:32)
+  Suggested fix: acquire A before B in every thread.
+    change worker_q() (ab_ba.cpp:32): it takes A while holding B
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  A, B are mutexes, only one owner at a time
+    ✔ Hold and wait     P holds A while requesting B; Q holds B while requesting A
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     P -> B -> Q -> A -> P   (possible; it did not have to happen in this run)
+  Call stacks:
+    thread P (T1, started in worker_p()) requesting B:
+      #0 worker_p() (ab_ba.cpp:21)
+    thread Q (T2, started in worker_q()) requesting A:
+      #0 worker_q() (ab_ba.cpp:32)
+[LockSpy] LIVE DEADLOCK: 2 threads are blocked in a wait-for cycle  (#2, t=0.510s)
+  thread P holds Lock A and waits for Lock B (owner: thread Q), blocked 0.51s in worker_p() (ab_ba.cpp:21)
+  thread Q holds Lock B and waits for Lock A (owner: thread P), blocked 0.51s in worker_q() (ab_ba.cpp:32)
+  Coffman conditions (a deadlock needs all four):
+    ✔ Mutual exclusion  A, B are mutexes, only one owner at a time
+    ✔ Hold and wait     P holds A and is blocked on B; Q holds B and is blocked on A
+    ✔ No preemption     a pthread lock is never taken away; only its owner can unlock it
+    ✔ Circular wait     P -> B -> Q -> A -> P   (happening now)
+  This hang was predicted at t=0.000s (finding #1).
+  Suggested fix: acquire A before B in every thread.
+    change worker_q() (ab_ba.cpp:32): it takes A while holding B
+  Call stacks:
+    thread P (T3, started in worker_p()) blocked on B:
+      #0 worker_p() (ab_ba.cpp:21)
+    thread Q (T4, started in worker_q()) blocked on A:
+      #0 worker_q() (ab_ba.cpp:32)
+==================== LockSpy summary ====================
+program /lockspy/build/tests/buggy/ab_ba  pid 211  ran 0.511 s  (12 lock events)
+threads 5, locks 2, lock-order edges 2
+findings: 1 potential deadlock, 1 live deadlock, 0 relock, 0 bad unlock, 0 held at exit
+suppressed as safe: 0 cycle(s)  (single thread 0, gate lock 0, read-read 0);  a naive detector would report 1 cycle(s)
+  #1 POTENTIAL_DEADLOCK at t=0.000s
+  #2 LIVE_DEADLOCK at t=0.510s
+lock-order components (Tarjan SCC) and the suggested global order:
+  {A, B}  order: A < B
+    violated in worker_q() (ab_ba.cpp:32): takes A while holding B
+top contended locks (by total wait time):
+  #   lock                       acquired  contended      wait ms   max wait      hold ms   max hold
+  1   A                                 3          0        0.000      0.000        3.727      3.713
+  2   B                                 3          0        0.000      0.000        3.720      3.717
+[LockSpy] LOCKSPY_ON_DEADLOCK=abort: calling abort()
+timeout: the monitored command dumped core

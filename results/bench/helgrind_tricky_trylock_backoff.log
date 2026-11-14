@@ -1,0 +1,74 @@
+==1209== Helgrind, a thread error detector
+==1209== Copyright (C) 2007-2017, and GNU GPL'd, by OpenWorks LLP et al.
+==1209== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==1209== Command: ./build/tests/tricky/trylock_backoff
+==1209== 
+==1209== ---Thread-Announcement------------------------------------------
+==1209== 
+==1209== Thread #3 was created
+==1209==    at 0x49BB8B7: clone (clone.S:62)
+==1209==    by 0x4955397: create_thread (pthread_create.c:297)
+==1209==    by 0x4955E67: pthread_create@@GLIBC_2.34 (pthread_create.c:836)
+==1209==    by 0x48929BB: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400D53: main (trylock_backoff.cpp:34)
+==1209== 
+==1209== ----------------------------------------------------------------
+==1209== 
+==1209== Thread #3: lock order "0x420070 before 0x4200A0" violated
+==1209== 
+==1209== Observed (incorrect) order is: acquisition of lock at 0x4200A0
+==1209==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BBF: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:14)
+==1209==    by 0x400CA3: t2(void*) (trylock_backoff.cpp:27)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209== 
+==1209==  followed by a later acquisition of lock at 0x420070
+==1209==    at 0x488FB10: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BC7: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:15)
+==1209==    by 0x400CA3: t2(void*) (trylock_backoff.cpp:27)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209== 
+==1209== Required order was established by acquisition of lock at 0x420070
+==1209==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BBF: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:14)
+==1209==    by 0x400C23: t1(void*) (trylock_backoff.cpp:22)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209== 
+==1209==  followed by a later acquisition of lock at 0x4200A0
+==1209==    at 0x488FB10: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BC7: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:15)
+==1209==    by 0x400C23: t1(void*) (trylock_backoff.cpp:22)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209== 
+==1209==  Lock at 0x420070 was first observed
+==1209==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BBF: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:14)
+==1209==    by 0x400C23: t1(void*) (trylock_backoff.cpp:22)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209==  Address 0x420070 is 0 bytes inside data symbol "A"
+==1209== 
+==1209==  Lock at 0x4200A0 was first observed
+==1209==    at 0x488FB10: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x400BC7: take_both(pthread_mutex_t*, pthread_mutex_t*) (trylock_backoff.cpp:15)
+==1209==    by 0x400C23: t1(void*) (trylock_backoff.cpp:22)
+==1209==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1209==    by 0x495582B: start_thread (pthread_create.c:447)
+==1209==    by 0x49BB8DB: thread_start (clone.S:79)
+==1209==  Address 0x4200a0 is 0 bytes inside data symbol "B"
+==1209== 
+==1209== 
+==1209== 
+==1209== Use --history-level=approx or =none to gain increased speed, at
+==1209== the cost of reduced accuracy of conflicting-access information
+==1209== For lists of detected and suppressed errors, rerun with: -s
+==1209== ERROR SUMMARY: 2000 errors from 1 contexts (suppressed: 12005 from 9)

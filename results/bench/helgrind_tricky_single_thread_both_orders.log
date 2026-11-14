@@ -1,0 +1,117 @@
+==1272== Helgrind, a thread error detector
+==1272== Copyright (C) 2007-2017, and GNU GPL'd, by OpenWorks LLP et al.
+==1272== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==1272== Command: ./build/tests/tricky/single_thread_both_orders
+==1272== 
+==1272== ---Thread-Announcement------------------------------------------
+==1272== 
+==1272== Thread #2 was created
+==1272==    at 0x49BB8B7: clone (clone.S:62)
+==1272==    by 0x4955397: create_thread (pthread_create.c:297)
+==1272==    by 0x4955E67: pthread_create@@GLIBC_2.34 (pthread_create.c:836)
+==1272==    by 0x48929BB: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400BE7: main (single_thread_both_orders.cpp:22)
+==1272== 
+==1272== ----------------------------------------------------------------
+==1272== 
+==1272== Thread #2: lock order "0x420060 before 0x420090" violated
+==1272== 
+==1272== Observed (incorrect) order is: acquisition of lock at 0x420090
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B47: only_user(void*) (single_thread_both_orders.cpp:14)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  followed by a later acquisition of lock at 0x420060
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B53: only_user(void*) (single_thread_both_orders.cpp:14)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272== Required order was established by acquisition of lock at 0x420060
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B0B: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  followed by a later acquisition of lock at 0x420090
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B17: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  Lock at 0x420060 was first observed
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B0B: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272==  Address 0x420060 is 0 bytes inside data symbol "A"
+==1272== 
+==1272==  Lock at 0x420090 was first observed
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B17: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272==  Address 0x420090 is 0 bytes inside data symbol "B"
+==1272== 
+==1272== 
+==1272== ----------------------------------------------------------------
+==1272== 
+==1272== Thread #2: lock order "0x420090 before 0x420060" violated
+==1272== 
+==1272== Observed (incorrect) order is: acquisition of lock at 0x420060
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B0B: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  followed by a later acquisition of lock at 0x420090
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B17: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272== Required order was established by acquisition of lock at 0x420090
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B47: only_user(void*) (single_thread_both_orders.cpp:14)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  followed by a later acquisition of lock at 0x420060
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B53: only_user(void*) (single_thread_both_orders.cpp:14)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272== 
+==1272==  Lock at 0x420090 was first observed
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B17: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272==  Address 0x420090 is 0 bytes inside data symbol "B"
+==1272== 
+==1272==  Lock at 0x420060 was first observed
+==1272==    at 0x488F940: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x400B0B: only_user(void*) (single_thread_both_orders.cpp:13)
+==1272==    by 0x4892B93: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-arm64-linux.so)
+==1272==    by 0x495582B: start_thread (pthread_create.c:447)
+==1272==    by 0x49BB8DB: thread_start (clone.S:79)
+==1272==  Address 0x420060 is 0 bytes inside data symbol "A"
+==1272== 
+==1272== 
+==1272== 
+==1272== Use --history-level=approx or =none to gain increased speed, at
+==1272== the cost of reduced accuracy of conflicting-access information
+==1272== For lists of detected and suppressed errors, rerun with: -s
+==1272== ERROR SUMMARY: 199 errors from 2 contexts (suppressed: 0 from 0)
