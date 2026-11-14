@@ -1,6 +1,4 @@
-// lock_graph.h - the global lock-order graph (edge H->L: L requested while H held).
-// OS concepts: deadlock detection on a resource graph, DFS cycle search, prevention by ordering.
-// Every function here expects State::mu to be held by the caller.
+// lock_graph.h: lock-order graph. Callers must hold State::mu.
 #pragma once
 #include "recorder.h"
 

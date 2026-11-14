@@ -1,16 +1,6 @@
-// lock_graph.cpp - the lock-order graph: edge H->L means "some thread requested L while
-// holding H". A cycle means the locks are taken in inconsistent orders, so some interleaving
-// can deadlock, even if this run never hung (the idea behind Linux lockdep).
-//
-//  * New edge H->L: DFS from L looking for a path back to H (L can already reach H => cycle).
-//  * Filter (fewer false positives): a cycle is only reported if its edges were taken by at
-//    least two different threads, no two of those threads held a common third "gate" lock
-//    (the gate serialises them, so they can never be inside at the same time), and no step
-//    needs a reader to wait for a reader. Otherwise the cycle is counted as "suppressed (safe)".
-//  * Fix: Tarjan's algorithm splits the graph into strongly connected components; inside each,
-//    a greedy ordering that removes few back-edges gives a suggested global lock order, and
-//    the back-edges are the call sites that violate it.
-// OS concepts: deadlock detection on a resource graph, circular wait, prevention by ordering.
+// lock_graph.cpp: lock-order graph. Edge H -> L means some thread asked for L while holding H.
+// A cycle means the locks are taken in different orders somewhere, so it can deadlock (same idea as
+// Linux lockdep). Also: filtering out cycles that can't really happen, and suggesting a lock order.
 #include "lock_graph.h"
 #include "config.h"
 #include <algorithm>
@@ -173,9 +163,8 @@ void lg_check(const Todo& todo, std::vector<Finding>& found) {
     for (auto& p : todo.wit) check_edge(p.first, found);
 }
 
-// Greedy ordering of "nodes" (a heuristic for the minimum feedback arc set): repeatedly take a
-// lock with no remaining incoming edge, or else the one with the most (outgoing - incoming).
-// Ties go to the lock created first. Edges that point backwards in the result are violations.
+// Greedy order: pick a lock with no incoming edges, else the one with most (out - in) edges,
+// ties -> lock created first. Edges that point backwards afterwards are the ones to fix.
 void lg_suggest(const std::vector<int>& nodes, std::vector<int>& order, std::vector<Step>& violations) {
     State& s = st();
     std::vector<int> left = nodes;

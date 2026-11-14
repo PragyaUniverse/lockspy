@@ -1,5 +1,4 @@
-// report.h - turns findings into text (stderr), and writes the final summary, JSON, DOT and HTML.
-// OS concepts: the four Coffman conditions are printed as evidence for every deadlock report.
+// report.h: printing findings and writing the final reports.
 #pragma once
 #include "recorder.h"
 

@@ -1,5 +1,4 @@
-// symbolize.h - addresses -> readable names (functions with file:line, locks, threads).
-// OS concepts: dynamic linking (dladdr), ELF symbol tables, /proc/self/task/<tid>/comm.
+// symbolize.h: turns addresses into names: functions with file:line, locks, threads.
 #pragma once
 #include "recorder.h"
 #include <string>

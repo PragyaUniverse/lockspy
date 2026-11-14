@@ -1,8 +1,5 @@
-// profiler.cpp - contention statistics. For each lock: how often it was acquired, how often a
-// thread had to wait (the trylock fast path failed), total/max wait time and total/max hold
-// time. Condition-variable sleeps and semaphore waits are counted separately, because waiting
-// for a signal is not lock contention.
-// OS concepts: blocking on a mutex, condition variables (monitors), counting semaphores.
+// profiler.cpp: counts acquisitions, wait time and hold time per lock. Condition variable sleeps
+// and semaphore waits are counted separately (waiting for a signal isn't lock contention).
 #include "profiler.h"
 #include <algorithm>
 

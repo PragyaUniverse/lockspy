@@ -1,10 +1,5 @@
-// report.cpp - everything the user reads.
-//  * report_emit: one finding, printed the moment it is found (synopsis format), with the four
-//    Coffman conditions as evidence, the suggested lock order and the call stacks.
-//  * report_final: end-of-run summary on stderr, plus lockspy_report.json, lockspy_graph.dot
-//    (lock graph as a heat map) and lockspy_report.html when requested by LOCKSPY_FORMAT.
-// OS concepts: Coffman's four necessary conditions for deadlock (mutual exclusion, hold and
-// wait, no preemption, circular wait); prevention by a global lock order.
+// report.cpp: formats findings (with the four Coffman conditions) and writes the end-of-run
+// summary, JSON, DOT graph and HTML report.
 #include "report.h"
 #include "config.h"
 #include "lock_graph.h"
@@ -319,8 +314,7 @@ static void write_json(const Snapshot& s, const std::string& path) {
       << ", \"read_read\": " << s.sup[R_READ] << "},\n  \"naive_cycles\": " << s.naive << "\n}\n";
 }
 
-// Heat map: fill colour by share of the total wait time; red bold = edge of a reported cycle;
-// dashed grey = edge of a cycle that was suppressed as safe.
+// Node colour = share of the wait time. Red = reported cycle, dashed grey = suppressed cycle.
 static void write_dot(const Snapshot& s, const std::string& path) {
     const char* heat[] = {"#ffffff", "#fee5d9", "#fcae91", "#fb6a4a", "#de2d26"};
     uint64_t max_wait = 1;

@@ -1,6 +1,4 @@
-// waitfor.h - live wait-for graph (thread -> lock it waits for -> owner thread) and the
-// watchdog thread that looks for cycles in it.
-// OS concepts: wait-for graph, deadlock detection after the fact, a helper thread.
+// waitfor.h: live deadlock detection (watchdog thread + wait-for graph).
 #pragma once
 
 namespace ls {

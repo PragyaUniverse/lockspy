@@ -1,11 +1,5 @@
-// waitfor.cpp - the live wait-for graph and the watchdog thread.
-// Each blocked thread has an edge to the lock it waits for (ThreadState::wait_lock), and each
-// lock has edges to the threads that own it (LockInfo::holders). Following thread -> lock ->
-// owner gives a thread -> thread graph; a cycle in it is a deadlock that is happening now.
-// The watchdog wakes every LOCKSPY_WATCHDOG_MS, only considers threads blocked longer than
-// that (short waits are normal contention), and reports each cycle once.
-// OS concepts: wait-for graph, deadlock detection and recovery (report or abort), a helper
-// thread created with the real pthread_create and excluded from all analysis.
+// waitfor.cpp: the watchdog thread. Blocked thread -> lock it waits for -> thread that owns it.
+// A cycle in that graph is a deadlock happening right now.
 #include "waitfor.h"
 #include "config.h"
 #include "lock_graph.h"
@@ -65,8 +59,7 @@ static Finding make_live(const std::vector<int>& cyc, uint64_t now) {
         locks.push_back(t->wait_lock);
     }
     std::sort(locks.begin(), locks.end());
-    // Predict-then-confirm: was this exact set of locks reported earlier as a potential deadlock
-    // (or, for a thread waiting on itself, as a relock)?
+    // Was this hang predicted? (same locks as an earlier potential deadlock, or a relock)
     for (const Finding& p : s.findings) {
         std::vector<int> pl;
         for (const Step& x : p.steps) pl.push_back(x.want);

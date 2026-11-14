@@ -1,6 +1,4 @@
-// profiler.h - per-lock contention statistics (acquisitions, wait time, hold time).
-// OS concept: contended threads wait for a mutex; this measures how long, and for which lock.
-// prof_* updates expect State::mu to be held.
+// profiler.h: per-lock contention stats. prof_* functions expect State::mu to be held.
 #pragma once
 #include "recorder.h"
 

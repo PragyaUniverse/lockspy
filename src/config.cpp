@@ -1,5 +1,4 @@
-// config.cpp - parses the LOCKSPY_* environment variables (see config.h for the list).
-// OS concept: process environment, inherited from the parent shell or the bin/lockspy wrapper.
+// config.cpp: reads the LOCKSPY_* environment variables (list in config.h).
 #include "config.h"
 #include <cstdlib>
 #include <cstring>

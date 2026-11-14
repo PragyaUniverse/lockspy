@@ -1,6 +1,5 @@
-// LockSpy Studio - browser side. Talks to ui/server.py:
-//   GET /api/programs, GET /api/source, POST /api/run, POST /api/build
-// Every run result is the JSON report LockSpy itself writes (lockspy_report.json) plus stderr.
+// app.js: the web page. Gets the program list from ui/server.py, runs programs through /api/run
+// and shows the JSON report LockSpy writes.
 "use strict";
 
 const $ = (s) => document.querySelector(s);
@@ -12,7 +11,7 @@ const KIND = {
   BAD_UNLOCK: "Unlock of a lock not held",
   HELD_AT_EXIT: "Lock held at thread exit",
 };
-const GROUPS = { buggy: "Buggy (must be flagged)", correct: "Correct (must stay silent)", tricky: "Tricky (look buggy, are safe)", perf: "Performance" };
+const GROUPS = { buggy: "Buggy programs", correct: "Correct programs", tricky: "Tricky (safe, but look buggy)", perf: "Performance" };
 
 let PROGRAMS = [];
 let current = null;           // selected program object (or a custom one)
@@ -72,14 +71,14 @@ function select(p) {
   renderList();
   const r = results[p.id];
   if (r && r !== "running") showResult(p, r);
-  else clearResult(r === "running" ? "Running…" : null);
+  else clearResult(r === "running" ? "Running..." : null);
   loadSource(p);
 }
 
 function clearResult(msg) {
   const v = $("#verdict");
   if (msg) { v.hidden = false; v.className = "verdict running"; v.innerHTML = `<b>${esc(msg)}</b>`; } else v.hidden = true;
-  $("#tab-findings").innerHTML = `<p class="empty">Press <b>Run under LockSpy</b> to see what LockSpy finds.</p>`;
+  $("#tab-findings").innerHTML = `<p class="empty">Click <b>Run</b> to run this program under LockSpy.</p>`;
   $("#tab-graph").innerHTML = `<p class="empty">The lock-order graph appears after a run.</p>`;
   $("#tab-contention").innerHTML = `<p class="empty">Per-lock wait and hold times appear after a run.</p>`;
   $("#tab-output").innerHTML = `<p class="empty">LockSpy's stderr appears after a run.</p>`;
@@ -92,7 +91,7 @@ async function runCurrent() {
   setBusy(true);
   results[p.id] = "running";
   renderList();
-  clearResult(p.mode === "hang" ? "Running… this program really deadlocks; the watchdog will catch it in about a second." : "Running…");
+  clearResult(p.mode === "hang" ? "Running... this one really deadlocks, the watchdog should stop it in about a second." : "Running...");
   setStatus(`Running ${p.id}…`);
   try {
     const res = await api("/api/run", {
@@ -150,9 +149,9 @@ function renderFindings(rep, p) {
   if (!rep) { box.innerHTML = `<p class="empty">No report was written (did the program start?). See Raw output.</p>`; return; }
   const sup = rep.suppressed || {};
   const supTotal = (sup.single_thread || 0) + (sup.gate_lock || 0) + (sup.read_read || 0);
-  const supLine = `<p class="sup">Suppressed as safe: <b>${supTotal}</b> cycle(s) — gate lock ${sup.gate_lock || 0}, single thread ${sup.single_thread || 0}, read-read ${sup.read_read || 0}. A naive detector would report <b>${rep.naive_cycles}</b>.</p>`;
+  const supLine = `<p class="sup">Cycles skipped as safe: ${supTotal} (gate lock ${sup.gate_lock || 0}, single thread ${sup.single_thread || 0}, read-read ${sup.read_read || 0}). Without filtering: ${rep.naive_cycles}.</p>`;
   if (!rep.findings.length) {
-    box.innerHTML = `<div class="clean-box"><h3>No problems found</h3><p>${rep.locks.length} lock(s), ${rep.edges.length} lock-order edge(s), ${rep.threads.length} thread(s), ${rep.events} lock events.</p></div>${supLine}`;
+    box.innerHTML = `<div class="clean-box"><h3>Nothing found</h3><p>${rep.locks.length} lock(s), ${rep.edges.length} lock-order edge(s), ${rep.threads.length} thread(s), ${rep.events} lock events.</p></div>${supLine}`;
     return;
   }
   box.innerHTML = rep.findings.map((f) => findingCard(f)).join("") + supLine;
@@ -163,7 +162,7 @@ function findingCard(f) {
   const fixLines = lines.filter((l) => /Suggested fix:|^\s+change /.test(l)).map((l) => l.trim());
   const cof = lines.filter((l) => l.includes("✔")).map((l) => {
     const m = l.trim().replace(/^✔\s*/, "").match(/^(Mutual exclusion|Hold and wait|No preemption|Circular wait)\s+(.*)$/);
-    return m ? `<div><b>✔ ${m[1]}</b><span>${esc(m[2])}</span></div>` : "";
+    return m ? `<div><b>✔ ${m[1]}:</b><span>${esc(m[2])}</span></div>` : "";
   }).join("");
   const steps = f.steps.map((s) => {
     if (f.type === "POTENTIAL_DEADLOCK" || f.type === "LIVE_DEADLOCK")
@@ -171,7 +170,7 @@ function findingCard(f) {
     const lock = s.wants || s.holds;
     return `<div class="step"><span class="chip thread">${esc(s.thread)}</span><span class="arrow">·</span><span class="chip lock">${esc(lock)}</span>${s.stack[0] ? `<span class="arrow">at</span><code>${linkify(esc(s.stack[0]))}</code>` : ""}</div>`;
   }).join("");
-  const predicted = f.predicted_by >= 0 ? `<div class="fix">This hang was predicted by finding <b>#${f.predicted_by}</b>.</div>` : "";
+  const predicted = f.predicted_by >= 0 ? `<div class="fix">LockSpy warned about this earlier (finding #${f.predicted_by}).</div>` : "";
   return `<article class="finding">
     <div class="finding-head"><span class="pill bad">${f.type}</span><h3>${KIND[f.type] || f.type}</h3><span class="t">#${f.id} · t=${f.t.toFixed(3)}s</span></div>
     <div class="finding-body">
@@ -179,7 +178,7 @@ function findingCard(f) {
       ${fixLines.length ? `<div class="fix">${fixLines.map(esc).join("<br>")}</div>` : ""}
       ${predicted}
       ${cof ? `<div class="coffman">${cof}</div>` : ""}
-      <details class="full"><summary>Full LockSpy report</summary><pre class="term">${linkify(esc(f.text))}</pre></details>
+      <details class="full"><summary>show full report</summary><pre class="term">${linkify(esc(f.text))}</pre></details>
     </div></article>`;
 }
 
@@ -233,7 +232,7 @@ function renderGraph(rep) {
     const p = pos[id], n = p.n, heat = n.wait_ns / maxWait;
     nodeSvg += `<g class="g-node"><title>${esc(n.name)}: ${n.acquisitions} acquisitions, ${ms(n.wait_ns)} ms waiting</title>
       <rect x="${(p.x - p.hw).toFixed(1)}" y="${(p.y - p.hh).toFixed(1)}" width="${(2 * p.hw).toFixed(1)}" height="${2 * p.hh}" rx="7"
-        style="fill: color-mix(in srgb, var(--red) ${Math.round(heat * 55)}%, var(--brass-fill))"/>
+        style="fill: color-mix(in srgb, #ff8182 ${Math.round(heat * 70)}%, var(--brass-fill))"/>
       <text x="${p.x.toFixed(1)}" y="${(p.y - 7).toFixed(1)}">${esc(n.name)}</text>
       <text class="sub" x="${p.x.toFixed(1)}" y="${(p.y + 11).toFixed(1)}">${n.acquisitions} acq · ${ms(n.wait_ns)} ms</text></g>`;
   }
@@ -242,8 +241,8 @@ function renderGraph(rep) {
       <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
       <marker id="ga-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
     </defs>${edges}${labels}${nodeSvg}</svg></div>
-    <div class="legend"><span><i class="red"></i>edge of a reported cycle</span><span><i class="dash"></i>edge of a cycle suppressed as safe</span>
-    <span><i></i>other lock order (label: threads × times)</span><span>box colour = share of the total wait time</span></div>`;
+    <div class="legend"><span><i class="red"></i>deadlock cycle</span><span><i class="dash"></i>cycle skipped as safe</span>
+    <span><i></i>other lock order (label: thread × count)</span><span>redder box = more waiting</span></div>`;
 }
 
 // ---------------------------------------------------------------- contention tab
@@ -258,7 +257,7 @@ function renderContention(rep) {
     <td><span class="heat" style="width:${Math.max(2, Math.round((l.wait_ns / maxWait) * 90))}px"></span>${ms(l.wait_ns)}</td>
     <td class="num">${ms(l.max_wait_ns)}</td><td class="num">${ms(l.hold_ns)}</td><td class="num">${ms(l.max_hold_ns)}</td></tr>`).join("");
   const threads = rep.threads.map((t) => `<tr><td class="num">T${t.id}</td><td class="mono">${esc(t.name)}</td><td class="mono">${esc(t.start || "")}</td></tr>`).join("");
-  box.innerHTML = `<p class="desc">Ranked by total wait time: how long threads were blocked waiting for each lock.</p>
+  box.innerHTML = `<p class="desc">Sorted by total time threads spent waiting for each lock.</p>
     <div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Lock</th><th>Kind</th><th class="num">Acquired</th><th class="num">Contended</th>
     <th>Wait ms</th><th class="num">Max wait</th><th class="num">Hold ms</th><th class="num">Max hold</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="sub-h">Threads</p>
@@ -325,7 +324,7 @@ async function runAll() {
   const tbody = $("#suite-table tbody");
   tbody.innerHTML = PROGRAMS.map((p) => `<tr data-id="${esc(p.id)}"><td class="mono">${esc(p.id)}</td><td>${pills(p.expected)}</td><td class="rep">…</td><td class="num t"></td><td class="res">waiting</td></tr>`).join("");
   let pass = 0, done = 0;
-  const score = () => ($("#score").innerHTML = `${pass}/${PROGRAMS.length} <small>passed${done < PROGRAMS.length ? ` · running ${done + 1} of ${PROGRAMS.length}` : ""}</small>`);
+  const score = () => ($("#score").innerHTML = `${pass}/${PROGRAMS.length} <small>passed${done < PROGRAMS.length ? ` (running ${done + 1} of ${PROGRAMS.length})` : ""}</small>`);
   score();
   for (const p of PROGRAMS) {
     const row = tbody.querySelector(`tr[data-id="${CSS.escape(p.id)}"]`);

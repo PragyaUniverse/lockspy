@@ -1,13 +1,7 @@
-// symbolize.cpp - turns raw addresses into names a person can read. Only used when reporting,
-// never on the lock/unlock fast path.
-//  * Code address -> "worker_p() (ab_ba.cpp:27)": dladdr() finds the loaded object (program or
-//    .so) and its load address; the binutils tool addr2line maps the offset to function/file/line.
-//  * Lock address -> name: (1) LOCKSPY_NAMES file, (2) the global variable that contains it,
-//    found in the ELF symbol table with nm ("A", "forks[3]"), (3) where it was initialised or
-//    first locked ("mutex@bank.cpp:12"), (4) "mutex@0x...".
-//  * Thread -> name: /proc/self/task/<tid>/comm if the program named it, else T1, T2, ...
-// OS concepts: dynamic linking and load addresses, ELF symbol tables, /proc, process creation
-// (posix_spawn + pipe; LD_PRELOAD is removed so the helper tools are not traced themselves).
+// symbolize.cpp: addresses -> readable names, only used when printing a report.
+// Code: dladdr() finds which file an address is in, addr2line gives function and line.
+// Locks: LOCKSPY_NAMES file, else the global variable (from nm), else where it was created, else the address.
+// Threads: /proc/self/task/<tid>/comm if the program named them, else T1, T2, ...
 #include "symbolize.h"
 #include "config.h"
 #include <dlfcn.h>
@@ -161,8 +155,7 @@ std::string frame_str(const Frame& f) {
     return s;
 }
 
-// Frames from the C++ standard library wrappers (std::mutex::lock, lock_guard, ...) are not
-// where the programmer wrote the lock call, so skip them when choosing "the" call site.
+// Skip std::mutex::lock / lock_guard frames, we want the line the programmer wrote.
 static bool is_wrapper(const Frame& f) {
     return f.func.compare(0, 5, "std::") == 0 || f.func.compare(0, 9, "__gthread") == 0 ||
            f.func.compare(0, 9, "__gnu_cxx") == 0;

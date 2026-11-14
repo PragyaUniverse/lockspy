@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""LockSpy Studio - local web UI for LockSpy.
+"""Web UI for LockSpy (python standard library only).
 
-Serves a browser dashboard and a small JSON API that runs programs under LockSpy and returns
-its reports. Python standard library only. It must run on Linux (where LD_PRELOAD works); on
-macOS, `make ui` starts it inside the lockspy-dev Docker container.
+Serves the page in ui/static and runs programs under LockSpy when the page asks.
+Needs Linux; on a Mac `make ui` runs it inside the Docker container.
 
     python3 ui/server.py [--port 8080] [--host 127.0.0.1]
 
@@ -34,20 +33,23 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; c
 
 
 def describe(src_path):
-    """The comment block at the top of a test program, without the '// file.cpp - ' prefix."""
+    """First paragraph of the comment at the top of a test program (stops at usage lines)."""
     lines = []
     try:
         with open(src_path) as f:
             for line in f:
                 if not line.startswith("//"):
                     break
-                lines.append(line[2:].strip())
+                text = line[2:].strip()
+                if not text or text.startswith("./") or text.lower().startswith("usage") or text[:2] in ("1.", " 1"):
+                    break
+                lines.append(text)
     except OSError:
         return ""
     text = " ".join(lines)
     if " - " in text:
         text = text.split(" - ", 1)[1]
-    return text
+    return text[:1].upper() + text[1:]
 
 
 def programs():
@@ -117,7 +119,7 @@ def build():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "LockSpyStudio/1.0"
+    server_version = "LockSpy/1.0"
 
     def log_message(self, fmt, *a):
         print("[ui]", self.address_string(), fmt % a, flush=True)
@@ -176,7 +178,7 @@ def main():
     ap.add_argument("--port", type=int, default=int(os.environ.get("LOCKSPY_UI_PORT", "8080")))
     a = ap.parse_args()
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
-    print(f"LockSpy Studio running: open http://localhost:{a.port}  (Ctrl-C to stop)", flush=True)
+    print(f"LockSpy UI: http://localhost:{a.port}  (Ctrl-C to stop)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

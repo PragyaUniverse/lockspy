@@ -1,12 +1,6 @@
-// interpose.cpp - the LD_PRELOAD shim. It defines pthread_mutex_lock & co. with the same names
-// as libc. The dynamic linker searches LD_PRELOAD libraries first, so the program's calls land
-// here; each wrapper records the event and forwards to the real function, which it finds with
-// dlsym(RTLD_NEXT, name): "the next definition after this library", i.e. libc's.
-// OS concepts: dynamic linking and symbol interposition, LD_PRELOAD, library constructors and
-// destructors, thread creation, re-entrancy, fork handlers.
-//
-// The lock wrappers use a fast path: try the lock first. If it is free we never block, so no
-// wait-for edge is needed and the cost is small. Only when it is busy do we record the wait.
+// interpose.cpp: the LD_PRELOAD part. These functions have the same names as libc's pthread
+// functions, so the program calls ours first. Each one records the event and then calls the real
+// function, which we get with dlsym(RTLD_NEXT, name).
 #include "config.h"
 #include "recorder.h"
 #include "report.h"
@@ -45,9 +39,8 @@ static void resolve_all() {
     R(sem_post, "sem_post");
     R(thread_create, "pthread_create");
     R(thread_exit, "pthread_exit");
-    // On x86-64 an unversioned dlsym("pthread_cond_wait") returns the OLD GLIBC_2.2.5 condvar
-    // implementation, which is incompatible with condvars made by current code and hangs.
-    // Ask for the current version explicitly; fall back for platforms with a single version.
+    // x86-64 glibc has two pthread_cond_wait versions and plain dlsym gives the old one (hangs).
+    // So ask for GLIBC_2.3.2; aarch64 only has one version, hence the fallback.
     real.cond_wait = (decltype(real.cond_wait))dlvsym(RTLD_NEXT, "pthread_cond_wait", "GLIBC_2.3.2");
     real.cond_timedwait = (decltype(real.cond_timedwait))dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.3.2");
     if (!real.cond_wait) R(cond_wait, "pthread_cond_wait");
@@ -56,9 +49,8 @@ static void resolve_all() {
     resolving = false;
 }
 
-// Before our constructor has run (another library's constructor may lock first), resolve on
-// demand. If even that is impossible (we are inside dlsym), report success: only one thread
-// exists that early, so nothing can be contended.
+// If something locks before our constructor ran, look up the real function now.
+// (If we're still inside dlsym, just return 0: there's only one thread that early.)
 #define PASS(fn, ...)                              \
     do {                                           \
         if (!real.fn) resolve_all();               \
@@ -73,6 +65,7 @@ extern "C" int pthread_mutex_lock(pthread_mutex_t* m) {
     Guard g;
     if (!g.entered) PASS(mutex_lock, m);
     void* pc = CALLER;
+    // try first: if the lock is free we never wait, so there's nothing to tell the watchdog
     int rc = real.mutex_trylock(m);
     if (rc == 0) { rec_acquired(m, K_MUTEX, M_WRITE, false, pc, 0, false); return 0; }
     if (rc != EBUSY) return rc;
@@ -90,8 +83,7 @@ extern "C" int pthread_mutex_trylock(pthread_mutex_t* m) {
     return rc;
 }
 
-// A timed lock gives up after a timeout, so it can never block forever: treat it like trylock
-// (held set and wait time, but no lock-order edge and no wait-for edge).
+// timedlock gives up after the timeout, so it can't hang forever: handle it like trylock (no edges).
 extern "C" int pthread_mutex_timedlock(pthread_mutex_t* m, const struct timespec* abs) {
     Guard g;
     if (!g.entered) PASS(mutex_timedlock, m, abs);
@@ -128,8 +120,7 @@ extern "C" int pthread_mutex_destroy(pthread_mutex_t* m) {
 }
 
 // ---------------- condition variables ----------------
-// cond_wait atomically releases the mutex, sleeps, and re-acquires it. Mirror that in the
-// held set, and count the sleep as condition-variable time, not lock wait time.
+// cond_wait unlocks the mutex while sleeping and relocks it after, so we do the same in the held set.
 
 extern "C" int pthread_cond_wait(pthread_cond_t* c, pthread_mutex_t* m) {
     Guard g;
@@ -275,8 +266,8 @@ extern "C" int sem_post(sem_t* s) {
 }
 
 // ---------------- threads ----------------
-// Wrap the start routine so we know each thread's entry function, and can check its held-lock
-// set when it returns ("lock held at thread exit").
+// We wrap the start function so we know where each thread started and can check for locks
+// still held when it returns.
 
 struct Trampoline { void* (*fn)(void*); void* arg; };
 

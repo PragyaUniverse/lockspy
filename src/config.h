@@ -1,7 +1,5 @@
-// config.h - LockSpy settings, read once from LOCKSPY_* environment variables.
-// OS concept: the process environment. The bin/lockspy wrapper turns command-line flags into
-// environment variables, and the preloaded library reads them in its constructor, because a
-// preloaded library has no argv of its own.
+// config.h: LockSpy settings, read from LOCKSPY_* environment variables.
+// A preloaded library has no argv, so the bin/lockspy script passes options through the environment.
 #pragma once
 #include <string>
 

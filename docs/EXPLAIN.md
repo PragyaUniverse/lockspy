@@ -1,153 +1,161 @@
-# LockSpy viva guide
+# Viva notes
 
-## 1. The two-minute explanation
+## Explaining the project in 2 minutes
 
-> Multithreaded programs protect shared data with mutexes. If two threads take the same two
-> locks in opposite orders, they can deadlock, but only when the timing is unlucky, so the bug can
-> pass every test and then freeze in production.
->
-> LockSpy is a shared library that we load into an unmodified program with `LD_PRELOAD`. The
-> dynamic linker then sends every `pthread_mutex_lock`, `unlock`, `trylock`, condition-variable
-> and rwlock call to our wrapper first. The wrapper records who took which lock, when, and from
-> where, and then calls the real function in libc, found with `dlsym(RTLD_NEXT)`.
->
-> From those events we keep, for every thread, the set of locks it holds. Whenever a thread asks
-> for lock L while holding H, we add an edge H→L to a global lock-order graph. A cycle in that graph
-> means two code paths disagree about the order, so we report a POTENTIAL DEADLOCK, even if this
-> run never hung. Separately, a watchdog thread looks at the live wait-for graph (thread waits for
-> lock, lock is owned by thread); a cycle there is a deadlock that is happening right now.
->
-> What makes LockSpy different from a basic cycle detector: it suppresses cycles that cannot
-> happen (a common gate lock, a single thread, trylock), it proves each report with the four Coffman
-> conditions, it suggests a concrete global lock order and names the line to change, and it links
-> a live hang back to the earlier prediction. It also profiles which locks are contended, and
-> writes text, JSON and a Graphviz heat map.
+When threads lock the same mutexes in different orders, they can deadlock, but only if the timing
+is bad. So the bug can pass every test and show up later.
 
-## 2. Follow one `pthread_mutex_lock` call through the code
+LockSpy is a shared library. We load it into a normal, unmodified program using `LD_PRELOAD`.
+Because of that, when the program calls `pthread_mutex_lock`, it actually calls our function
+first. We note down which thread took which lock and from where, then call the real
+`pthread_mutex_lock` from libc (we get it with `dlsym(RTLD_NEXT)`).
 
-Thread Q in `tests/buggy/ab_ba.cpp` holds `B` and calls `pthread_mutex_lock(&A)`.
+For every thread we keep the set of locks it currently holds. If a thread asks for lock L while
+it holds H, we add an edge H → L to a graph. If that graph gets a cycle, two parts of the code
+disagree about the order, so we report a POTENTIAL DEADLOCK, even if nothing hung this time.
 
-1. **The dynamic linker picks our function.** Because `libLockSpy.so` is in `LD_PRELOAD`, the
-   symbol `pthread_mutex_lock` resolves to `src/interpose.cpp:72`, not to libc.
-2. **Re-entrancy guard.** `Guard g` (`src/recorder.h:54`) sets the thread-local flag `t_in_spy`.
-   If it was already set (LockSpy itself is locking), we call the real function and stop.
-3. **Fast path.** We call the real `pthread_mutex_trylock` (`interpose.cpp:76`). If it succeeds,
-   `rec_acquired` (`src/recorder.cpp:145`) records the acquisition and we return. Here A is free,
-   so this path is taken.
-4. **Edges.** Inside `rec_acquired`, under the private lock `State::mu`, `lg_note_edges`
-   (`src/lock_graph.cpp:24`) loops over Q's held set {B} and adds edge B→A with a *witness*: thread Q,
-   modes, other held locks (none), stack to be filled. The edge is new, so it goes into the `Todo`.
-5. **Held set and profile.** `add_held` puts A into Q's held set and into A's list of holders (the
-   lock→owner part of the wait-for graph); `prof_acquired` (`src/profiler.cpp:11`) counts it.
-6. **Slow work after unlocking.** `finish` (`recorder.cpp:126`) releases `State::mu`, captures the
-   stack with `backtrace()`, re-locks, stores the stack in the witness and calls `lg_check`.
-7. **DFS.** `check_edge` (`lock_graph.cpp:106`) asks: can A already reach B? `find_paths`
-   (`lock_graph.cpp:61`) finds the edge A→B taken earlier by thread P. Cycle: A→B→A.
-8. **Filter.** `choose` (`lock_graph.cpp:83`) picks one witness per edge: P for A→B, Q for B→A.
-   Two different threads, no common gate lock, no read-read step: the cycle is real.
-9. **Fix.** `lg_suggest` (`lock_graph.cpp:179`) orders {A, B}: tie, so the lock created first wins:
-   A < B. The edge B→A points backwards: Q's call site is the one to change.
-10. **Report.** `report_emit` (`src/report.cpp:152`) symbolizes (`addr2line`, `nm`), prints the
-    synopsis-format report with the Coffman block (`report.cpp:76`) and stores the finding.
-11. **Back in the wrapper**, `pthread_mutex_lock` returns 0 to the program.
+There's also a watchdog thread. Every half second it checks which threads are stuck waiting for a
+lock and who owns that lock. If that forms a cycle, the program is deadlocked right now and we
+report a LIVE DEADLOCK.
 
-If A had been busy, step 3 would go to the slow path instead: `rec_before_block`
-(`recorder.cpp:161`) does the relock check and the edges, captures the stack and registers the
-wait-for edge "Q waits for A"; then the real `pthread_mutex_lock` blocks; then `rec_after_block`
-(`recorder.cpp:200`) removes the wait-for edge and records the acquisition with its wait time.
-If Q never wakes up, the watchdog (`src/waitfor.cpp:82`) finds Q→A→P→B→Q and prints LIVE DEADLOCK.
+On top of that: we skip cycles that can't really happen (both threads held a common lock first,
+only one thread involved, or trylock), we print the four Coffman conditions for each report, we
+suggest a lock order that fixes it, and we show which locks threads wait on the most.
 
-`pthread_mutex_unlock` (`interpose.cpp:106`) calls `rec_release` (`recorder.cpp:214`): if A is not
-in Q's held set it reports a bad unlock; otherwise it records the hold time and removes A. Then it
-calls the real unlock.
+## What happens on one pthread_mutex_lock call
 
-## 3. OS concept → where it is in the code
+Example: in `tests/buggy/ab_ba.cpp`, thread Q holds `B` and calls `pthread_mutex_lock(&A)`.
 
-| OS concept (syllabus) | Where in LockSpy |
+1. Because of `LD_PRELOAD`, the call goes to our `pthread_mutex_lock` in `src/interpose.cpp:64`.
+2. `Guard g` (`src/recorder.h:50`) sets a thread-local flag. If the flag was already set, it means
+   LockSpy itself is locking something, so we just call the real function and return.
+3. We call the real `pthread_mutex_trylock` first (`interpose.cpp:69`). A is free, so it succeeds
+   and we call `rec_acquired` (`src/recorder.cpp:137`).
+4. `rec_acquired` locks our own `State::mu` and calls `lg_note_edges` (`src/lock_graph.cpp:14`).
+   Q holds B, so it adds the edge B → A, remembering that Q took it. The edge is new, so it gets
+   checked for cycles.
+5. A goes into Q's held set, and `prof_acquired` (`src/profiler.cpp:8`) counts it.
+6. `finish` (`recorder.cpp:118`) unlocks `State::mu`, takes a stack trace, locks again and runs the
+   cycle check.
+7. `check_edge` (`lock_graph.cpp:96`) looks for a path from A back to B. `find_paths`
+   (`lock_graph.cpp:51`) finds A → B, which thread P added earlier. So A → B → A is a cycle.
+8. `choose` (`lock_graph.cpp:73`) checks it's real: two different threads (P and Q), no common
+   lock held by both, not a reader waiting for a reader.
+9. `lg_suggest` (`lock_graph.cpp:168`) works out the order A < B, so B → A (Q's code) is the one
+   to change.
+10. `report_emit` (`src/report.cpp:147`) turns addresses into names and prints the report,
+    including the Coffman conditions (`report.cpp:71`).
+11. Our `pthread_mutex_lock` returns 0 to the program.
+
+If A had been locked by someone else, the trylock would fail and we'd go the slow way:
+`rec_before_block` (`recorder.cpp:152`) adds the edges, takes a stack and marks "Q is waiting for
+A", then we call the real (blocking) lock, then `rec_after_block` (`recorder.cpp:191`) clears the
+waiting mark and records how long Q waited. If Q never gets A, the watchdog (`src/waitfor.cpp:75`)
+finds the cycle Q → A → P → B → Q.
+
+For `pthread_mutex_unlock` (`interpose.cpp:98`), `rec_release` (`recorder.cpp:205`) checks that the
+thread actually holds the lock (otherwise it's a bad unlock), records the hold time and removes it
+from the held set, and then we call the real unlock.
+
+## OS concepts and where they are
+
+| Concept | Where |
 |---|---|
-| Linux shell, `LD_PRELOAD` | `bin/lockspy` sets `LD_PRELOAD=build/libLockSpy.so` and the `LOCKSPY_*` variables |
-| Dynamic linking, symbol interposition | `src/interpose.cpp`: same-named wrappers; `resolve_all()` uses `dlsym(RTLD_NEXT)` / `dlvsym` |
-| Library constructor / destructor | `lockspy_init` / `lockspy_fini` in `interpose.cpp` |
-| Processes, `fork`, process creation | `pthread_atfork` handlers in `recorder.cpp`; `posix_spawnp` of `addr2line`/`nm` in `symbolize.cpp` |
-| Threads (pthread), thread IDs | `pthread_create` trampoline, `ThreadState`, `gettid` in `recorder.cpp` |
-| Thread-local storage | `t_in_spy`, `t_self` (`__thread`, initial-exec) |
-| `/proc` | thread names from `/proc/self/task/<tid>/comm`; program path from `/proc/self/exe` |
-| Mutex | intercepted lock/trylock/timedlock/unlock/init/destroy; LockSpy's own `SpyLock` |
-| Monitor / condition variable | `pthread_cond_wait` wrapper releases and re-adds the mutex (`rec_cond_*`) |
-| Semaphore | `sem_wait/trywait/timedwait/post` wrappers, profiling only |
+| Shell, `LD_PRELOAD` | `bin/lockspy` sets `LD_PRELOAD` and the `LOCKSPY_*` options |
+| Dynamic linking | `interpose.cpp`: wrappers with the same names, `resolve_all()` uses `dlsym(RTLD_NEXT)` |
+| Library constructor/destructor | `lockspy_init` / `lockspy_fini` in `interpose.cpp` |
+| Processes, `fork` | `pthread_atfork` handlers in `recorder.cpp`; `posix_spawnp` in `symbolize.cpp` |
+| Threads | `pthread_create` wrapper, `ThreadState`, `gettid` |
+| Thread-local storage | `t_in_spy`, `t_self` |
+| `/proc` | thread names from `/proc/self/task/<tid>/comm`, program path from `/proc/self/exe` |
+| Mutex, monitor, semaphore | the wrappers in `interpose.cpp`; `rec_cond_*` for condition variables |
 | Classical problems | `tests/*/philosophers_*`, `producer_consumer_*`, `readers_writers_*` |
-| Four deadlock conditions | `coffman()` in `report.cpp` prints evidence for each |
-| Resource-allocation / wait-for graph | `waitfor.cpp` (live), `lock_graph.cpp` (lock order) |
-| Deadlock detection (DFS) | `find_paths` (lock order), colour DFS in `wf_check` (live) |
-| Deadlock prevention by ordering | `lg_suggest` + Tarjan `lg_components` in `lock_graph.cpp` |
-| Deadlock recovery | `LOCKSPY_ON_DEADLOCK=abort` (terminate the process after reporting) |
+| Coffman conditions | `coffman()` in `report.cpp` |
+| Wait-for graph | `waitfor.cpp` (live), `lock_graph.cpp` (lock order) |
+| Cycle detection | `find_paths` (DFS), colour DFS in `wf_check` |
+| Prevention by ordering | `lg_suggest` and `lg_components` (Tarjan) in `lock_graph.cpp` |
+| Recovery | `LOCKSPY_ON_DEADLOCK=abort` |
 
-## 4. Likely examiner questions
+## Questions they might ask
 
-1. **Why `LD_PRELOAD` and not `ptrace` or recompiling?** `LD_PRELOAD` works on unmodified binaries
-   and costs one extra function call per lock operation. `ptrace` stops the process on every event
-   (two context switches each time), far too slow for lock calls. Recompiling (like
-   ThreadSanitizer) needs the source and a rebuild.
-2. **How do you call the real `pthread_mutex_lock`?** `dlsym(RTLD_NEXT, "pthread_mutex_lock")`
-   returns the next definition after our library in the search order, which is libc's.
-3. **Why can a run that never hung still be reported?** The lock-order graph remembers that some
-   thread took A then B, and some other thread took B then A, even if at different times. Another
-   interleaving of the same code would deadlock. That is a POTENTIAL DEADLOCK. LIVE DEADLOCK is
-   reported only when threads are actually stuck.
-4. **What is a gate lock?** A third lock G that both threads hold while taking A and B in opposite
-   orders. Only one thread can hold G, so the two critical sections never overlap and the A/B cycle
-   cannot deadlock. LockSpy stores the other held locks for every edge and suppresses such cycles.
-5. **Why does a trylock add no edge?** A trylock never blocks. Hold-and-wait needs a thread to
-   *wait*; with trylock it gets EBUSY and can back off. Linux lockdep uses the same rule.
-6. **Why must `pthread_cond_wait` be handled specially?** It releases the mutex while sleeping and
-   re-acquires it afterwards, inside libc where we cannot see it. If we did not mirror that, the
-   sleeping thread would look like the owner of the mutex: wrong hold times and wrong wait-for edges.
-7. **How do you stop LockSpy from intercepting itself?** A thread-local flag set for the whole
-   wrapper. LockSpy's own locking, `malloc`, file I/O… may call pthread functions; while the flag is
-   set those calls go straight to libc. Our private lock calls the real functions directly.
-8. **What are the four Coffman conditions and how do you check them?** Mutual exclusion (mutexes
-   have one owner), hold and wait (the thread held H while requesting L: that is what an edge is), no
-   preemption (pthread locks are never taken away), circular wait (the cycle). Each report prints the
-   evidence for each condition.
-9. **How is the suggested lock order computed?** Tarjan's algorithm finds the strongly connected
-   components of the cycle edges; inside each we order locks greedily (no incoming edge first, else
-   most outgoing minus incoming). Edges pointing backwards are the call sites to change. It is a
-   heuristic for the minimum feedback arc set, which is NP-hard.
-10. **How does the watchdog detect a live deadlock?** Every 500 ms it takes threads blocked longer
-    than that, follows thread → lock it waits for → owner thread, and runs a DFS with colours; a
-    back edge to a thread on the current path closes a cycle.
-11. **What is the overhead and where does it come from?** Measured (`results/RESULTS.md`): about
-    185 ns per uncontended lock+unlock pair, 3.1× geometric-mean slowdown over 6 programs
-    (ThreadSanitizer 4.3×, Helgrind 122.5×; TSan was faster on the tight uncontended loop). It comes from: one extra trylock call, one global private lock per event (all threads
-    serialise on it), hash-map lookups for the lock and the edges, and two `clock_gettime` calls for
-    wait/hold time. Stacks are captured only for new edges, blocked threads and misuse.
-12. **Why is the watchdog not reported as a thread?** It is created with the real `pthread_create`
-    and its re-entrancy flag is always set, so its calls never enter the analysis.
-13. **What happens on relock of a normal mutex?** We report RELOCK first (with the stack), then call
-    the real function anyway, as the synopsis says. A normal mutex then waits for itself forever; the
-    watchdog sees the one-thread cycle and reports a LIVE DEADLOCK "predicted" by the relock report.
-14. **What can LockSpy NOT detect?** Deadlocks through semaphores (no owner), spinlocks, lock-free
-    code, locks taken inside libc, statically linked programs, and lock-order bugs on code paths the
-    run did not execute. It is a dynamic tool: it sees what ran.
-15. **How do you know it works?** `make test` runs 18 cases (buggy, correct, tricky, perf) and
-    compares the finding types with `tests/expected.csv`; `bench/run_bench.sh` compares LockSpy with
-    ThreadSanitizer and Helgrind and computes precision and recall. `make memcheck` runs LockSpy
-    itself under Valgrind.
+**Why LD_PRELOAD and not ptrace or recompiling?**
+It works on any dynamically linked program and only adds a function call per lock. ptrace stops
+the process on every event, which is way too slow for locks. Recompiling (what ThreadSanitizer
+does) needs the source.
 
-## 5. Five-minute live demo script
+**How do you call the real function?**
+`dlsym(RTLD_NEXT, "pthread_mutex_lock")` gives the next definition after our library, which is
+libc's.
 
-(On macOS the commands below run themselves inside the Ubuntu container through `bin/in-docker`;
-Docker must be running, e.g. `colima start`. The `xdg-open` step is Linux; on a Mac use `open`.)
+**How can you report a deadlock if the program didn't hang?**
+The graph remembers that one thread took A then B and another took B then A, even at different
+times. With different timing they would deadlock. That's a potential deadlock. A live deadlock is
+only reported when threads are really stuck.
+
+**What's a gate lock?**
+A third lock G that both threads take before A and B. Only one of them can hold G, so they can never
+be in the A/B part at the same time, and the cycle can't deadlock. We store which other locks were
+held for every edge, so we can skip these.
+
+**Why doesn't trylock add an edge?**
+It never waits. If the lock is busy it just returns EBUSY. No waiting means no hold-and-wait.
+Linux lockdep does the same.
+
+**Why is pthread_cond_wait special?**
+It unlocks the mutex while sleeping and locks it again inside libc, where we can't see it. If we
+didn't handle it, the sleeping thread would look like it still owns the mutex.
+
+**How do you avoid LockSpy intercepting its own locks?**
+A thread-local flag is set while we're inside a wrapper. Any pthread call made while it's set goes
+straight to libc. Our own internal lock also calls libc directly.
+
+**The four Coffman conditions?**
+Mutual exclusion (a mutex has one owner), hold and wait (the thread held H while asking for L, that's
+exactly what an edge is), no preemption (nobody can take a mutex away), circular wait (the cycle).
+
+**How do you pick the suggested order?**
+Tarjan's algorithm finds the strongly connected components. Inside each, we pick locks greedily
+(no incoming edges first, otherwise most outgoing minus incoming). Edges that go backwards are the
+lines to change. The perfect answer is NP-hard (minimum feedback arc set), so this is a heuristic.
+
+**How does the watchdog find a live deadlock?**
+Every 500 ms it takes the threads blocked longer than that, follows thread → lock it waits for →
+owner, and does a DFS. Reaching a thread that's already on the current path means a cycle.
+
+**What's the overhead?**
+About 185 ns per lock/unlock when there's no contention, and 3.1x slowdown on average over our 6
+programs (ThreadSanitizer 4.3x, Helgrind 122.5x, see `results/RESULTS.md`). It comes from the extra
+trylock, our one internal lock that every thread goes through, a couple of hash lookups and two
+clock reads. ThreadSanitizer was faster than us on the tight uncontended loop.
+
+**Why isn't the watchdog shown as a thread?**
+It's created with the real `pthread_create` and its flag is always set, so we never record it.
+
+**What happens on a relock of a normal mutex?**
+We print RELOCK first, then call the real lock anyway (like the synopsis says). The thread then
+waits for itself forever, and the watchdog reports a live deadlock that the relock "predicted".
+
+**What can't LockSpy detect?**
+Deadlocks through semaphores (no owner), spinlocks, lock-free code, libc's internal locks,
+static binaries, and lock orders that never ran.
+
+**How do you know it works?**
+`make test` runs 18 cases and compares with `tests/expected.csv`. `make bench` compares with
+ThreadSanitizer and Helgrind. `make memcheck` runs LockSpy under Valgrind.
+
+## Demo plan (about 5 minutes)
+
+On a Mac these run inside Docker automatically (start it with `colima start` first). Use `open`
+instead of `xdg-open` on a Mac.
 
 ```bash
-make                                                    # 1. build the library and the tests
-./build/tests/buggy/ab_ba                               # 2. bare run: works, looks fine
-./bin/lockspy run -- ./build/tests/buggy/ab_ba          # 3. POTENTIAL DEADLOCK + fix + Coffman
-./bin/lockspy run -- ./build/tests/buggy/ab_ba --hang   # 4. LIVE DEADLOCK, "predicted at t=..." (Ctrl-C to stop)
-./bin/lockspy run -- ./build/tests/tricky/gate_lock_safe          # 5. silent: suppressed (gate lock 1)
-./bin/lockspy run --naive -- ./build/tests/tricky/gate_lock_safe  #    the naive detector raises a false alarm
-./bin/lockspy run -- ./build/tests/perf/contention_heavy          # 6. contention ranking hot > warm > cold
-make demo && xdg-open results/demo/lockspy_report.html            # 7. heat-map graph + HTML report
-make test                                                         # 8. the whole suite: 18/18 PASS
-make ui                                                           # 9. LockSpy Studio: open http://localhost:8080, Run all tests
+make                                                     # build
+./build/tests/buggy/ab_ba                                # normal run, looks fine
+./bin/lockspy run -- ./build/tests/buggy/ab_ba           # potential deadlock + fix
+./bin/lockspy run -- ./build/tests/buggy/ab_ba --hang    # live deadlock, "predicted at..."
+./bin/lockspy run -- ./build/tests/tricky/gate_lock_safe          # nothing reported
+./bin/lockspy run --naive -- ./build/tests/tricky/gate_lock_safe  # without filters: false alarm
+./bin/lockspy run -- ./build/tests/perf/contention_heavy          # contention table
+make test                                                         # 18/18
+make ui                                                           # web UI, http://localhost:8080
 ```

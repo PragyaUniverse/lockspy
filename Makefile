@@ -4,7 +4,7 @@
 #   make demo     AB-BA demo + rendered lock graph (needs Graphviz for PNG/SVG)
 #   make bench    overhead + tool comparison (bench/run_bench.sh -> results/RESULTS.md)
 #   make memcheck run the test programs with LockSpy under Valgrind memcheck
-#   make ui       start LockSpy Studio, the web UI, at http://localhost:8080
+#   make ui       web UI at http://localhost:8080
 #
 # LockSpy needs Linux. On any other OS (macOS) every target except clean is run inside the
 # lockspy-dev Ubuntu container by bin/in-docker, so "make test" works the same everywhere.

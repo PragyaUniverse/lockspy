@@ -1,8 +1,5 @@
-// recorder.h - LockSpy's data model and the event-recording API used by the interceptor.
-// It holds every lock LockSpy has seen, every thread with its held-lock set, the lock-order
-// edges and the findings. All of it is protected by one private lock (State::mu).
-// OS concepts: threads (per-thread state, kernel thread IDs), mutual exclusion (our own lock
-// must not be intercepted), thread-local storage, monotonic clocks.
+// recorder.h: data structures (locks, threads, held locks, edges, findings) and the functions
+// interpose.cpp calls on every lock event. Everything here is protected by State::mu.
 #pragma once
 #include <pthread.h>
 #include <semaphore.h>
@@ -47,9 +44,8 @@ struct RealFns {
 extern RealFns real;
 extern bool g_ready;  // true between our constructor and destructor
 
-// Re-entrancy guard. While it is set, every wrapper calls the real function and does nothing
-// else, so LockSpy's own locking and allocation never re-enter LockSpy. "initial-exec" TLS is
-// a fixed offset from the thread pointer: no allocation and no function call on access.
+// Set while we're inside a wrapper. If it's already set, the wrapper just calls the real function,
+// so our own locking/malloc never comes back into LockSpy. (initial-exec = cheap TLS access)
 extern __thread bool t_in_spy __attribute__((tls_model("initial-exec")));
 struct Guard {
     bool entered;

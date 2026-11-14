@@ -1,12 +1,7 @@
-// recorder.cpp - records every lock event: who (thread), what (lock), when (timestamp) and
-// where (call site / stack). It keeps each thread's held-lock set, feeds the lock-order graph,
-// registers wait-for edges, updates the profiler and detects misuse (relock, bad unlock,
-// lock held at thread exit).
-// OS concepts: threads and thread IDs (gettid, /proc/self/task/<tid>/comm), mutual exclusion
-// (one private lock, short critical sections), fork() handling with pthread_atfork.
-//
-// Pattern used everywhere: do the bookkeeping while holding State::mu, but do anything slow
-// (capturing a stack, symbolizing, printing) only after releasing it.
+// recorder.cpp: records lock events. Keeps each thread's set of held locks, feeds the lock graph,
+// the wait-for info and the profiler, and checks for relock / bad unlock / lock held at thread exit.
+// Rule used everywhere: update the tables while holding State::mu, do slow stuff (stack traces,
+// printing) after releasing it.
 #include "recorder.h"
 #include "config.h"
 #include "lock_graph.h"
@@ -28,8 +23,8 @@ RealFns real;
 bool g_ready = false;
 __thread bool t_in_spy = false;
 static __thread ThreadState* t_self __attribute__((tls_model("initial-exec"))) = nullptr;
-// Allocated on first use and never freed. A plain global object would be built by a C++
-// initializer that may run after our constructor, and destroyed before our destructor runs.
+// Created on first use and never freed. A normal global might not be constructed yet when our
+// constructor runs, or already destroyed when we print the final report.
 static State* g_state = nullptr;
 State& st() {
     if (!g_state) g_state = new State();
@@ -43,8 +38,7 @@ uint64_t now_ns() {
 }
 double secs(uint64_t t) { return (double)(t - st().t0) / 1e9; }
 
-// Raw return addresses only (cheap). A few extra frames cover LockSpy's own frames, which
-// the symbolizer drops later.
+// Just raw addresses (cheap). +4 frames because our own frames get dropped later.
 Stack capture_stack() {
     int n = cfg().stack_depth + 4;
     Stack s(n);
@@ -88,8 +82,7 @@ static LockInfo* lock_locked(void* addr, LockKind k, void* pc) {
     L->addr = (uintptr_t)addr;
     L->kind = k;
     L->first_pc = pc;
-    // Statically initialised mutexes never pass through pthread_mutex_init, so read the type
-    // glibc stores inside the mutex (PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP sets kind 1).
+    // static initializers skip pthread_mutex_init, so read the type glibc keeps in the mutex
     if (k == K_MUTEX) L->recursive = (((pthread_mutex_t*)addr)->__data.__kind & 3) == PTHREAD_MUTEX_RECURSIVE;
     s.locks.push_back(L);
     s.by_addr[L->addr] = L->id;
@@ -121,8 +114,7 @@ static void add_held(ThreadState* t, LockInfo* L, Mode m, void* pc, uint64_t wai
     prof_acquired(L, wait, contended);
 }
 
-// Second half of the "bookkeeping now, slow work later" pattern: capture one stack, attach it
-// to the new lock-order edges, run the DFS cycle check and print what it finds.
+// After releasing State::mu: take the stack, store it on the new edges, check for cycles, print.
 static void finish(Todo& todo, Stack* have = nullptr) {
     if (todo.wit.empty() && !todo.site_pc) return;
     Stack stack = have ? *have : capture_stack();
@@ -156,8 +148,7 @@ void rec_acquired(void* lock, LockKind k, Mode m, bool no_edges, void* pc, uint6
     finish(todo);
 }
 
-// Slow path, before calling the real (blocking) lock: relock check, lock-order edges and DFS,
-// then register the wait-for edge "this thread waits for L" for the watchdog.
+// Lock is busy, before blocking: relock check, add edges, then mark "waiting for L" for the watchdog.
 WaitCtx rec_before_block(void* lock, LockKind k, Mode m, void* pc) {
     Todo todo;
     Finding relock;
@@ -249,8 +240,7 @@ void rec_init(void* lock, LockKind k, bool recursive, void* pc) {
     L->recursive = recursive;
 }
 
-// The node stays in the history (for reports) but leaves the live graph, so a new lock that
-// reuses this address gets a fresh node and is not confused with the old one.
+// Keep the node for the report, but forget the address so a new lock there gets a new node.
 void rec_destroy(void* lock) {
     Locked l(st().mu);
     auto it = st().by_addr.find((uintptr_t)lock);
@@ -259,8 +249,7 @@ void rec_destroy(void* lock) {
     st().by_addr.erase(it);
 }
 
-// pthread_cond_wait releases the mutex while sleeping and re-acquires it before returning.
-// Mirror that in the held set, or the sleeping thread would look like the mutex owner.
+// cond_wait releases the mutex while sleeping; otherwise the sleeping thread looks like the owner.
 int rec_cond_release(void* mutex) {
     Locked l(st().mu);
     ThreadState* t = self_locked();
@@ -326,8 +315,7 @@ void rec_init_state() {
     self_locked();  // the thread running the constructor is the main thread: idx 0
 }
 
-// fork(): only the calling thread exists in the child. Hold our lock across fork so the child
-// never inherits it in a half-updated state, then start the child with a fresh analysis.
+// fork: hold our locks during fork so the child gets consistent data, then reset it in the child.
 void rec_atfork_prepare() { sym_lock(); st().mu.lock(); }
 void rec_atfork_parent() { st().mu.unlock(); sym_unlock(); }
 void rec_atfork_child() {
