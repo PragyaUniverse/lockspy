@@ -1,24 +1,23 @@
-// app.js: the web page. Gets the program list from ui/server.py, runs programs through /api/run
-// and shows the JSON report LockSpy writes.
+// app.js: the LockSpy dashboard. Talks to ui/server.py:
+//   GET /api/programs, /api/source, /api/bench    POST /api/run, /api/build
+// A run returns the JSON report LockSpy writes (lockspy_report.json) plus its stderr.
 "use strict";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const KIND = {
-  POTENTIAL_DEADLOCK: "Potential deadlock",
-  LIVE_DEADLOCK: "Live deadlock",
-  RELOCK: "Relock of a non-recursive lock",
-  BAD_UNLOCK: "Unlock of a lock not held",
-  HELD_AT_EXIT: "Lock held at thread exit",
+  POTENTIAL_DEADLOCK: "Potential deadlock", LIVE_DEADLOCK: "Live deadlock", RELOCK: "Relock",
+  BAD_UNLOCK: "Bad unlock", HELD_AT_EXIT: "Held at exit",
 };
-const GROUPS = { buggy: "Buggy programs", correct: "Correct programs", tricky: "Tricky (safe, but look buggy)", perf: "Performance" };
+const nice = (k) => KIND[k] || k;
 
-let PROGRAMS = [];
-let current = null;           // selected program object (or a custom one)
-const results = {};           // program id -> last run result
+let programs = [];
+let selected = null;
+let filter = "all";
 let busy = false;
+const results = {};       // program id -> run result, or "running"
 
-// ---------------------------------------------------------------- helpers
+// ------------------------------------------------------------------ helpers
 async function api(path, body) {
   const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   const r = await fetch(path, opt);
@@ -27,373 +26,380 @@ async function api(path, body) {
   return j;
 }
 const sameSet = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
-const verdictOf = (p, res) => (p && p.expected && !p.custom ? (sameSet(res.found, p.expected) && !res.timed_out ? "pass" : "fail") : "info");
-const pills = (kinds) => (kinds.length ? kinds.map((k) => `<span class="pill bad">${k}</span>`).join(" ") : `<span class="pill none">NONE</span>`);
-const ms = (ns) => (ns / 1e6).toFixed(3);
-function setStatus(t) { $("#status").textContent = t; }
+const verdict = (p, r) => (!r || r === "running" ? "" : p.custom ? "info" : sameSet(r.found, p.expected) && !r.timed_out ? "pass" : "fail");
+const ms = (ns) => (ns / 1e6).toFixed(2);
+const tags = (kinds) => (kinds.length ? kinds.map((k) => `<span class="tag bad">${nice(k)}</span>`).join(" ") : `<span class="tag ok">No warnings</span>`);
+const setStatus = (t) => ($("#status").textContent = t);
 function setBusy(b) {
   busy = b;
-  for (const id of ["#run-btn", "#runall-btn", "#build-btn", "#custom-btn"]) $(id).disabled = b;
+  ["#run-btn", "#runall-btn", "#build-btn"].forEach((id) => ($(id).disabled = b));
+}
+function progress(frac) { $("#progress-bar").style.width = frac === null ? "0" : Math.round(frac * 100) + "%"; }
+
+// ------------------------------------------------------------------ KPI cards
+function setKpi(id, value, of, mood) {
+  const el = $(id);
+  el.querySelector(".v").textContent = value;
+  el.querySelector(".of").textContent = of || "";
+  el.classList.remove("good", "bad");
+  if (mood) el.classList.add(mood);
+}
+function updateKpis() {
+  const done = programs.filter((p) => results[p.id] && results[p.id] !== "running");
+  if (!done.length) return;
+  const buggy = programs.filter((p) => p.group === "buggy");
+  const safe = programs.filter((p) => p.group === "correct" || p.group === "tricky");
+  const caught = buggy.filter((p) => verdict(p, results[p.id]) === "pass").length;
+  const fps = safe.filter((p) => results[p.id] && results[p.id] !== "running" && results[p.id].found.length).length;
+  const passed = programs.filter((p) => verdict(p, results[p.id]) === "pass").length;
+  const allDone = done.length === programs.length;
+  setKpi("#kpi-bugs", caught, `/ ${buggy.length}`, caught === buggy.length ? "good" : allDone ? "bad" : "");
+  setKpi("#kpi-fp", fps, `/ ${safe.length}`, fps === 0 ? "good" : "bad");
+  setKpi("#kpi-pass", passed, `/ ${programs.length}`, passed === programs.length ? "good" : allDone ? "bad" : "");
+  $("#kpi-pass .kpi-bar div").style.width = (passed / programs.length) * 100 + "%";
 }
 
-// ---------------------------------------------------------------- sidebar
+// ------------------------------------------------------------------ program list
 function renderList() {
-  const box = $("#prog-list");
-  box.innerHTML = "";
-  for (const g of Object.keys(GROUPS)) {
-    const items = PROGRAMS.filter((p) => p.group === g);
-    if (!items.length) continue;
-    box.insertAdjacentHTML("beforeend", `<div class="side-title">${GROUPS[g]}</div>`);
-    for (const p of items) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "prog" + (current && current.id === p.id ? " on" : "");
-      b.dataset.id = p.id;
-      const r = results[p.id];
-      const dot = r === "running" ? "running" : r ? verdictOf(p, r) : "";
-      b.innerHTML = `<span class="dot ${dot}"></span><span><div class="pname">${esc(p.id.replace(/^[a-z]+\//, ""))}</div>
-        <div class="pexp">expects ${p.expected.length ? p.expected.join(", ").toLowerCase().replace(/_/g, " ") : "no warnings"}</div></span>`;
-      b.addEventListener("click", () => select(p));
-      box.appendChild(b);
-    }
+  const ul = $("#plist");
+  ul.innerHTML = "";
+  for (const p of programs.filter((x) => filter === "all" || x.group === filter)) {
+    const r = results[p.id];
+    const v = verdict(p, r);
+    const ico = r === "running" ? `<span class="ico run"></span>` : v === "pass" ? `<span class="ico pass">✓</span>` : v === "fail" ? `<span class="ico fail">!</span>` : `<span class="ico">·</span>`;
+    const name = esc(p.program.split("/")[1]) + (p.args ? ` <small>${esc(p.args)}</small>` : "");
+    const meta = r && r !== "running" ? (r.found.length ? r.found.map(nice).join(", ") : "no warnings")
+      : `expects ${p.expected.length ? p.expected.map(nice).join(", ").toLowerCase() : "no warnings"}`;
+    const li = document.createElement("li");
+    li.innerHTML = `<button type="button" class="prow${selected && selected.id === p.id ? " on" : ""}">${ico}
+      <span class="pmain"><div class="pname">${name}</div><div class="pmeta">${esc(meta)}</div></span>
+      <span class="ptime">${r && r !== "running" ? r.seconds.toFixed(2) + "s" : ""}</span></button>`;
+    li.firstElementChild.addEventListener("click", () => select(p));
+    ul.appendChild(li);
   }
 }
+document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+  filter = c.dataset.f;
+  document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === c));
+  renderList();
+}));
 
-// ---------------------------------------------------------------- program view
+// ------------------------------------------------------------------ detail panel
 function select(p) {
-  current = p;
-  $("#view-all").hidden = true;
-  $("#view-program").hidden = false;
-  $("#p-group").textContent = p.custom ? "custom" : p.group;
-  $("#p-name").textContent = p.id;
-  $("#p-desc").textContent = p.description || "";
-  $("#p-expect").innerHTML = p.custom ? "" : `Expected: ${pills(p.expected)}`;
+  selected = p;
+  $("#d-group").textContent = p.custom ? "your program" : p.group;
+  $("#d-name").textContent = p.custom ? p.id : p.program.split("/")[1] + (p.args ? " " + p.args : "");
+  $("#d-desc").textContent = p.description || "";
   renderList();
+  renderDetail();
+  loadCode(p);
+}
+
+function renderDetail() {
+  const p = selected;
+  if (!p) return;
   const r = results[p.id];
-  if (r && r !== "running") showResult(p, r);
-  else clearResult(r === "running" ? "Running..." : null);
-  loadSource(p);
-}
-
-function clearResult(msg) {
-  const v = $("#verdict");
-  if (msg) { v.hidden = false; v.className = "verdict running"; v.innerHTML = `<b>${esc(msg)}</b>`; } else v.hidden = true;
-  $("#tab-findings").innerHTML = `<p class="empty">Click <b>Run</b> to run this program under LockSpy.</p>`;
-  $("#tab-graph").innerHTML = `<p class="empty">The lock-order graph appears after a run.</p>`;
-  $("#tab-contention").innerHTML = `<p class="empty">Per-lock wait and hold times appear after a run.</p>`;
-  $("#tab-output").innerHTML = `<p class="empty">LockSpy's stderr appears after a run.</p>`;
-  setTabCount(0);
-}
-
-async function runCurrent() {
-  if (!current || busy) return;
-  const p = current;
-  setBusy(true);
-  results[p.id] = "running";
-  renderList();
-  clearResult(p.mode === "hang" ? "Running... this one really deadlocks, the watchdog should stop it in about a second." : "Running...");
-  setStatus(`Running ${p.id}…`);
-  try {
-    const res = await api("/api/run", {
-      program: p.program, args: p.args, mode: p.mode,
-      naive: $("#opt-naive").checked, watchdog_ms: +$("#opt-watchdog").value || 500,
-    });
-    results[p.id] = res;
-    setStatus(`${p.id}: done in ${res.seconds}s`);
-    if (current === p) showResult(p, res);
-  } catch (e) {
-    delete results[p.id];
-    setStatus("Error: " + e.message);
-    if (current === p) { const v = $("#verdict"); v.hidden = false; v.className = "verdict fail"; v.innerHTML = `<b>Could not run:</b> ${esc(e.message)}`; }
-  } finally {
-    setBusy(false);
-    renderList();
+  const strip = $("#strip");
+  if (!r) {
+    strip.className = "result-strip";
+    strip.innerHTML = `Expected: ${tags(p.expected || [])}`;
+    for (const k of ["graph", "report", "contention", "log"]) $("#pane-" + k).innerHTML = `<p class="empty">Not run yet. Press <b>Run</b>.</p>`;
+    tabCount(0);
+    return;
   }
+  if (r === "running") {
+    strip.className = "result-strip run";
+    strip.innerHTML = `<span class="big">Running…</span>${p.mode === "hang" ? " this program really deadlocks; the watchdog stops it after about a second." : ""}`;
+    return;
+  }
+  const v = verdict(p, r);
+  strip.className = "result-strip " + (v === "info" ? "" : v);
+  const how = r.aborted ? "stopped by the watchdog" : r.timed_out ? "killed after timeout" : `exit code ${r.rc}`;
+  strip.innerHTML = (v === "pass" ? `<span class="big pass-t">✓ Pass</span>` : v === "fail" ? `<span class="big fail-t">✗ Fail</span>` : "") +
+    `<span>Found: ${tags(r.found)}</span>` + (p.custom ? "" : `<span class="muted">expected ${p.expected.length ? p.expected.map(nice).join(", ") : "none"}</span>`) +
+    `<span class="right">${r.seconds.toFixed(3)} s · ${how}${r.naive ? " · naive" : ""}</span>`;
+  renderGraph(r.report);
+  renderReport(r.report);
+  renderContention(r.report);
+  $("#pane-log").innerHTML = `<pre class="term">${linkify(esc(r.stderr || "(nothing on stderr)"))}</pre>` +
+    (r.stdout ? `<h4>Program output</h4><pre class="term">${esc(r.stdout)}</pre>` : "");
+  tabCount(r.report ? r.report.findings.length : 0);
+  highlightCode();
 }
 
-function showResult(p, res) {
-  const v = $("#verdict");
-  const verdict = verdictOf(p, res);
-  v.hidden = false;
-  v.className = "verdict " + verdict;
-  const label = verdict === "pass" ? `<span class="pill pass">PASS</span>` : verdict === "fail" ? `<span class="pill fail">FAIL</span>` : "";
-  const how = res.aborted ? "watchdog aborted the hung program" : res.timed_out ? "killed after the timeout" : `exit code ${res.rc}`;
-  v.innerHTML = `${label}<span>Reported: ${pills(res.found)}</span>
-    <span class="meta">${res.seconds.toFixed(3)} s · ${how}${$("#opt-naive").checked ? " · naive mode" : ""}</span>`;
-  const rep = res.report;
-  renderFindings(rep, p);
-  renderGraph(rep);
-  renderContention(rep);
-  $("#tab-output").innerHTML = `<pre class="term">${linkify(esc(res.stderr || "(no output on stderr)"))}</pre>` +
-    (res.stdout ? `<p class="sub-h">Program stdout</p><pre class="term">${esc(res.stdout)}</pre>` : "");
-  setTabCount(rep ? rep.findings.length : 0);
-  highlightSource();
+function tabCount(n) {
+  document.querySelector('.tabs [data-tab="report"]').innerHTML = "Report" + (n ? `<span class="count">${n}</span>` : "");
 }
-
-function setTabCount(n) {
-  const b = document.querySelector('.tabs button[data-tab="findings"]');
-  b.innerHTML = "Findings" + (n ? `<span class="count">${n}</span>` : "");
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll(".pane").forEach((d) => (d.hidden = d.id !== "pane-" + name));
 }
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
-// Turn "(ab_ba.cpp:21)" into a link that jumps to that line in the Source tab.
 function linkify(html) {
   return html
     .replace(/\(([\w.-]+\.(?:cpp|cc|c|h)):(\d+)\)/g, (m, f, l) => `(<a class="src" data-line="${l}">${f}:${l}</a>)`)
     .replace(/^(\[LockSpy\] [A-Z ]+:?)/gm, `<span class="k">$1</span>`)
-    .replace(/(✔)/g, `<span class="ok">$1</span>`);
+    .replace(/✔/g, `<span class="ok">✔</span>`);
 }
-
-// ---------------------------------------------------------------- findings tab
-function renderFindings(rep, p) {
-  const box = $("#tab-findings");
-  if (!rep) { box.innerHTML = `<p class="empty">No report was written (did the program start?). See Raw output.</p>`; return; }
-  const sup = rep.suppressed || {};
-  const supTotal = (sup.single_thread || 0) + (sup.gate_lock || 0) + (sup.read_read || 0);
-  const supLine = `<p class="sup">Cycles skipped as safe: ${supTotal} (gate lock ${sup.gate_lock || 0}, single thread ${sup.single_thread || 0}, read-read ${sup.read_read || 0}). Without filtering: ${rep.naive_cycles}.</p>`;
-  if (!rep.findings.length) {
-    box.innerHTML = `<div class="clean-box"><h3>Nothing found</h3><p>${rep.locks.length} lock(s), ${rep.edges.length} lock-order edge(s), ${rep.threads.length} thread(s), ${rep.events} lock events.</p></div>${supLine}`;
-    return;
-  }
-  box.innerHTML = rep.findings.map((f) => findingCard(f)).join("") + supLine;
-}
-
-function findingCard(f) {
-  const lines = f.text.split("\n");
-  const fixLines = lines.filter((l) => /Suggested fix:|^\s+change /.test(l)).map((l) => l.trim());
-  const cof = lines.filter((l) => l.includes("✔")).map((l) => {
-    const m = l.trim().replace(/^✔\s*/, "").match(/^(Mutual exclusion|Hold and wait|No preemption|Circular wait)\s+(.*)$/);
-    return m ? `<div><b>✔ ${m[1]}:</b><span>${esc(m[2])}</span></div>` : "";
-  }).join("");
-  const steps = f.steps.map((s) => {
-    if (f.type === "POTENTIAL_DEADLOCK" || f.type === "LIVE_DEADLOCK")
-      return `<div class="step"><span class="chip thread">${esc(s.thread)}</span><span class="arrow">holds</span><span class="chip lock">${esc(s.holds)}</span><span class="arrow">${f.type === "LIVE_DEADLOCK" ? "blocked on" : "wants"}</span><span class="chip lock">${esc(s.wants)}</span></div>`;
-    const lock = s.wants || s.holds;
-    return `<div class="step"><span class="chip thread">${esc(s.thread)}</span><span class="arrow">·</span><span class="chip lock">${esc(lock)}</span>${s.stack[0] ? `<span class="arrow">at</span><code>${linkify(esc(s.stack[0]))}</code>` : ""}</div>`;
-  }).join("");
-  const predicted = f.predicted_by >= 0 ? `<div class="fix">LockSpy warned about this earlier (finding #${f.predicted_by}).</div>` : "";
-  return `<article class="finding">
-    <div class="finding-head"><span class="pill bad">${f.type}</span><h3>${KIND[f.type] || f.type}</h3><span class="t">#${f.id} · t=${f.t.toFixed(3)}s</span></div>
-    <div class="finding-body">
-      <div class="steps-list">${steps}</div>
-      ${fixLines.length ? `<div class="fix">${fixLines.map(esc).join("<br>")}</div>` : ""}
-      ${predicted}
-      ${cof ? `<div class="coffman">${cof}</div>` : ""}
-      <details class="full"><summary>show full report</summary><pre class="term">${linkify(esc(f.text))}</pre></details>
-    </div></article>`;
-}
-
-// ---------------------------------------------------------------- graph tab
-function renderGraph(rep) {
-  const box = $("#tab-graph");
-  if (!rep) { box.innerHTML = `<p class="empty">No report.</p>`; return; }
-  const used = new Set();
-  rep.edges.forEach((e) => { used.add(e.from); used.add(e.to); });
-  rep.locks.forEach((l) => { if (l.acquisitions > 0) used.add(l.id); });
-  const nodes = rep.locks.filter((l) => used.has(l.id));
-  if (!nodes.length) { box.innerHTML = `<p class="empty">This program took no locks.</p>`; return; }
-  // Lay the locks out on an ellipse that uses the whole drawing area.
-  const sizes = nodes.map((n) => {
-    const sub = `${n.acquisitions} acq · ${ms(n.wait_ns)} ms`;
-    return Math.max(n.name.length * 9.5, sub.length * 7) + 26;
-  });
-  const maxHalf = Math.max(...sizes) / 2;
-  const W = Math.max(620, nodes.length * 2 * maxHalf * 0.9), H = Math.max(360, 140 + nodes.length * 34), cx = W / 2, cy = H / 2;
-  const RX = nodes.length === 1 ? 0 : W / 2 - maxHalf - 14, RY = nodes.length === 1 ? 0 : H / 2 - 40;
-  const maxWait = Math.max(1, ...nodes.map((n) => n.wait_ns));
-  const pos = {};
-  nodes.forEach((n, i) => {
-    const a = -Math.PI / 2 + (2 * Math.PI * i) / nodes.length;
-    pos[n.id] = { x: cx + RX * Math.cos(a), y: cy + RY * Math.sin(a), hw: sizes[i] / 2, hh: 26, n };
-  });
-  const threadName = (id) => (rep.threads.find((t) => t.id === id) || {}).name || "T" + id;
-  const has = new Set(rep.edges.map((e) => e.from + ">" + e.to));
-  const clip = (p, dx, dy) => {               // point where a ray from the box centre leaves the box
-    const t = Math.min(p.hw / Math.abs(dx || 1e-9), p.hh / Math.abs(dy || 1e-9));
-    return [p.x + dx * t, p.y + dy * t];
-  };
-  let edges = "", labels = "";
-  for (const e of rep.edges) {
-    const a = pos[e.from], b = pos[e.to];
-    if (!a || !b) continue;
-    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-    const bend = has.has(e.to + ">" + e.from) ? 38 : 0;          // curve both edges of an A<->B pair
-    const nx = -dy / len, ny = dx / len;
-    const qx = (a.x + b.x) / 2 + nx * bend, qy = (a.y + b.y) / 2 + ny * bend;
-    const [x1, y1] = clip(a, qx - a.x, qy - a.y);
-    const [x2, y2] = clip(b, qx - b.x, qy - b.y);
-    const cls = e.in_cycle ? "cycle" : e.suppressed ? "sup" : "";
-    edges += `<path class="g-edge ${cls}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${qx.toFixed(1)},${qy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" marker-end="url(#${e.in_cycle ? "ga-red" : "ga"})"><title>${esc(e.site)}</title></path>`;
-    const names = e.threads.slice(0, 3).map(threadName).join(",") + (e.threads.length > 3 ? ",…" : "");
-    const lx = (x1 + 2 * qx + x2) / 4 + nx * 10, ly = (y1 + 2 * qy + y2) / 4 + ny * 10;
-    labels += `<text class="g-label ${e.in_cycle ? "cycle" : ""}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${esc(names)} ×${e.count}</text>`;
-  }
-  let nodeSvg = "";
-  for (const id in pos) {
-    const p = pos[id], n = p.n, heat = n.wait_ns / maxWait;
-    nodeSvg += `<g class="g-node"><title>${esc(n.name)}: ${n.acquisitions} acquisitions, ${ms(n.wait_ns)} ms waiting</title>
-      <rect x="${(p.x - p.hw).toFixed(1)}" y="${(p.y - p.hh).toFixed(1)}" width="${(2 * p.hw).toFixed(1)}" height="${2 * p.hh}" rx="7"
-        style="fill: color-mix(in srgb, #ff8182 ${Math.round(heat * 70)}%, var(--brass-fill))"/>
-      <text x="${p.x.toFixed(1)}" y="${(p.y - 7).toFixed(1)}">${esc(n.name)}</text>
-      <text class="sub" x="${p.x.toFixed(1)}" y="${(p.y + 11).toFixed(1)}">${n.acquisitions} acq · ${ms(n.wait_ns)} ms</text></g>`;
-  }
-  box.innerHTML = `<div class="graph-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Lock-order graph">
-    <defs>
-      <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
-      <marker id="ga-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
-    </defs>${edges}${labels}${nodeSvg}</svg></div>
-    <div class="legend"><span><i class="red"></i>deadlock cycle</span><span><i class="dash"></i>cycle skipped as safe</span>
-    <span><i></i>other lock order (label: thread × count)</span><span>redder box = more waiting</span></div>`;
-}
-
-// ---------------------------------------------------------------- contention tab
-function renderContention(rep) {
-  const box = $("#tab-contention");
-  if (!rep) { box.innerHTML = `<p class="empty">No report.</p>`; return; }
-  const locks = rep.locks.filter((l) => l.acquisitions > 0).sort((a, b) => b.wait_ns - a.wait_ns || b.acquisitions - a.acquisitions);
-  if (!locks.length) { box.innerHTML = `<p class="empty">No lock was acquired.</p>`; return; }
-  const maxWait = Math.max(1, ...locks.map((l) => l.wait_ns));
-  const rows = locks.map((l, i) => `<tr><td class="num">${i + 1}</td><td class="mono">${esc(l.name)}</td><td>${l.kind}${l.recursive ? " (recursive)" : ""}</td>
-    <td class="num">${l.acquisitions}</td><td class="num">${l.contended}</td>
-    <td><span class="heat" style="width:${Math.max(2, Math.round((l.wait_ns / maxWait) * 90))}px"></span>${ms(l.wait_ns)}</td>
-    <td class="num">${ms(l.max_wait_ns)}</td><td class="num">${ms(l.hold_ns)}</td><td class="num">${ms(l.max_hold_ns)}</td></tr>`).join("");
-  const threads = rep.threads.map((t) => `<tr><td class="num">T${t.id}</td><td class="mono">${esc(t.name)}</td><td class="mono">${esc(t.start || "")}</td></tr>`).join("");
-  box.innerHTML = `<p class="desc">Sorted by total time threads spent waiting for each lock.</p>
-    <div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Lock</th><th>Kind</th><th class="num">Acquired</th><th class="num">Contended</th>
-    <th>Wait ms</th><th class="num">Max wait</th><th class="num">Hold ms</th><th class="num">Max hold</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="sub-h">Threads</p>
-    <div class="table-wrap"><table><thead><tr><th class="num">Id</th><th>Name</th><th>Started in</th></tr></thead><tbody>${threads}</tbody></table></div>`;
-}
-
-// ---------------------------------------------------------------- source tab
-let sourceText = "";
-async function loadSource(p) {
-  const box = $("#tab-source");
-  sourceText = "";
-  if (!p.source) { box.innerHTML = `<p class="empty">No source file for a custom program.</p>`; return; }
-  try {
-    const s = await api("/api/source?path=" + encodeURIComponent(p.source));
-    if (current !== p) return;
-    sourceText = s.text;
-    highlightSource();
-  } catch (e) { box.innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
-}
-
-function highlightSource() {
-  const box = $("#tab-source");
-  if (!sourceText) return;
-  const res = current && results[current.id];
-  const file = current.source ? current.source.split("/").pop() : "";
-  const hot = new Set();
-  if (res && res !== "running") {
-    const re = new RegExp("\\(" + file.replace(/\./g, "\\.") + ":(\\d+)\\)", "g");
-    let m;
-    while ((m = re.exec(res.stderr))) hot.add(+m[1]);
-  }
-  const lines = sourceText.split("\n").map((l, i) => {
-    let h = esc(l);
-    if (/^\s*\/\//.test(l)) h = `<span class="c">${h}</span>`;
-    else h = h.replace(/\b(pthread_(?:mutex|rwlock|cond)_\w+|sem_\w+|lock_guard)\b/g, `<span class="lk">$1</span>`)
-              .replace(/(\/\/.*)$/, `<span class="c">$1</span>`);
-    return `<div class="ln${hot.has(i + 1) ? " hl" : ""}" id="L${i + 1}"><span>${i + 1}</span><span>${h || " "}</span></div>`;
-  }).join("");
-  box.innerHTML = (hot.size ? `<p class="desc" style="margin-bottom:10px">Highlighted: lines LockSpy named in its report (${[...hot].sort((a, b) => a - b).join(", ")}).</p>` : "") +
-    `<div class="code">${lines}</div>`;
-}
-
-// ---------------------------------------------------------------- tabs
-function showTab(name) {
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
-  document.querySelectorAll(".tab-body").forEach((d) => (d.hidden = d.id !== "tab-" + name));
-}
-document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 document.addEventListener("click", (e) => {
   const a = e.target.closest("a.src");
   if (!a) return;
-  showTab("source");
+  showTab("code");
   const row = document.getElementById("L" + a.dataset.line);
   if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
 });
 
-// ---------------------------------------------------------------- run all
+// ------------------------------------------------------------------ run
+async function runOne(p) {
+  results[p.id] = "running";
+  renderList();
+  if (selected === p) renderDetail();
+  const naive = $("#opt-naive").checked;
+  try {
+    const r = await api("/api/run", { program: p.program, args: p.args, mode: p.mode, naive, watchdog_ms: 500 });
+    r.naive = naive;
+    results[p.id] = r;
+  } catch (e) {
+    delete results[p.id];
+    setStatus("Error: " + e.message);
+  }
+  renderList();
+  updateKpis();
+  if (selected === p) renderDetail();
+}
+
+async function runSelected() {
+  if (!selected || busy) return;
+  setBusy(true);
+  setStatus(`Running ${selected.id}…`);
+  await runOne(selected);
+  const r = results[selected.id];
+  if (r && r !== "running") setStatus(`${selected.id} finished in ${r.seconds.toFixed(2)} s`);
+  setBusy(false);
+}
+
 async function runAll() {
   if (busy) return;
   setBusy(true);
-  current = null;
-  $("#view-program").hidden = true;
-  $("#view-all").hidden = false;
-  const tbody = $("#suite-table tbody");
-  tbody.innerHTML = PROGRAMS.map((p) => `<tr data-id="${esc(p.id)}"><td class="mono">${esc(p.id)}</td><td>${pills(p.expected)}</td><td class="rep">…</td><td class="num t"></td><td class="res">waiting</td></tr>`).join("");
-  let pass = 0, done = 0;
-  const score = () => ($("#score").innerHTML = `${pass}/${PROGRAMS.length} <small>passed${done < PROGRAMS.length ? ` (running ${done + 1} of ${PROGRAMS.length})` : ""}</small>`);
-  score();
-  for (const p of PROGRAMS) {
-    const row = tbody.querySelector(`tr[data-id="${CSS.escape(p.id)}"]`);
-    row.querySelector(".res").textContent = "running…";
-    results[p.id] = "running";
-    renderList();
-    setStatus(`Running ${p.id}…`);
-    try {
-      const res = await api("/api/run", { program: p.program, args: p.args, mode: p.mode, naive: $("#opt-naive").checked, watchdog_ms: 500 });
-      results[p.id] = res;
-      const v = verdictOf(p, res);
-      if (v === "pass") pass++;
-      row.querySelector(".rep").innerHTML = pills(res.found);
-      row.querySelector(".t").textContent = res.seconds.toFixed(2) + " s";
-      row.querySelector(".res").innerHTML = `<span class="pill ${v}">${v.toUpperCase()}</span>`;
-    } catch (e) {
-      delete results[p.id];
-      row.querySelector(".res").innerHTML = `<span class="pill fail">ERROR</span> ${esc(e.message)}`;
-    }
-    done++;
-    score();
-    renderList();
+  for (let i = 0; i < programs.length; i++) {
+    progress(i / programs.length);
+    setStatus(`Running ${i + 1}/${programs.length}: ${programs[i].id}`);
+    await runOne(programs[i]);
   }
-  setStatus(`Suite finished: ${pass}/${PROGRAMS.length} passed`);
+  progress(1);
+  setTimeout(() => progress(null), 600);
+  const passed = programs.filter((p) => verdict(p, results[p.id]) === "pass").length;
+  setStatus(`All tests done: ${passed}/${programs.length} passed`);
   setBusy(false);
 }
-$("#suite-table tbody").addEventListener("click", (e) => {
-  const tr = e.target.closest("tr");
-  const p = tr && PROGRAMS.find((x) => x.id === tr.dataset.id);
-  if (p && !busy) select(p);
-});
 
-// ---------------------------------------------------------------- build / custom / boot
-async function build() {
+// ------------------------------------------------------------------ report tab
+function renderReport(rep) {
+  const box = $("#pane-report");
+  if (!rep) { box.innerHTML = `<p class="empty">No report was written. Check the Log tab.</p>`; return; }
+  const sup = rep.suppressed || {};
+  const skipped = (sup.single_thread || 0) + (sup.gate_lock || 0) + (sup.read_read || 0);
+  const note = `<p class="note">${skipped} cycle(s) skipped as safe (gate lock ${sup.gate_lock || 0}, single thread ${sup.single_thread || 0}, read-read ${sup.read_read || 0}). A detector without filters would report ${rep.naive_cycles}.</p>`;
+  if (!rep.findings.length) {
+    box.innerHTML = `<div class="clean"><div class="big-ico">✓</div><h3>No problems found</h3>
+      <p>${rep.threads.length} threads · ${rep.locks.length} locks · ${rep.edges.length} lock-order edges · ${rep.events} lock events</p></div>${note}`;
+    return;
+  }
+  box.innerHTML = rep.findings.map(findingCard).join("") + note;
+}
+
+function findingCard(f) {
+  const lines = f.text.split("\n");
+  const fix = lines.filter((l) => /Suggested fix:|^\s+change /.test(l)).map((l) => esc(l.trim()));
+  const cof = lines.filter((l) => l.includes("✔")).map((l) => {
+    const m = l.trim().replace(/^✔\s*/, "").match(/^(Mutual exclusion|Hold and wait|No preemption|Circular wait)\s+(.*)$/);
+    return m ? `<div><b>✔ ${m[1]}</b>${esc(m[2])}</div>` : "";
+  }).join("");
+  const steps = f.steps.map((s) => {
+    if (f.type === "POTENTIAL_DEADLOCK" || f.type === "LIVE_DEADLOCK")
+      return `<div class="step"><span class="th">${esc(s.thread)}</span>holds<span class="lk">${esc(s.holds)}</span>${f.type === "LIVE_DEADLOCK" ? "blocked on" : "wants"}<span class="lk">${esc(s.wants)}</span></div>`;
+    return `<div class="step"><span class="th">${esc(s.thread)}</span><span class="lk">${esc(s.wants || s.holds)}</span>${s.stack[0] ? "at <code>" + linkify(esc(s.stack[0])) + "</code>" : ""}</div>`;
+  }).join("");
+  return `<article class="finding">
+    <div class="finding-head"><span class="tag bad">${nice(f.type)}</span><h3>${headline(f)}</h3><span class="when">#${f.id} · ${f.t.toFixed(3)}s</span></div>
+    <div class="finding-body">
+      <div>${steps}</div>
+      ${fix.length ? `<div class="fix">${fix.join("<br>")}</div>` : ""}
+      ${f.predicted_by >= 0 ? `<div class="fix">This hang was predicted earlier by finding <b>#${f.predicted_by}</b>.</div>` : ""}
+      ${cof ? `<div class="coffman">${cof}</div>` : ""}
+      <details><summary>Full text report</summary><pre class="term">${linkify(esc(f.text))}</pre></details>
+    </div></article>`;
+}
+function headline(f) {
+  const first = f.text.split("\n")[0].replace(/^\[LockSpy\]\s*/, "").replace(/\s+\(#\d+.*$/, "");
+  return esc(first.replace(/^[A-Z ]+:\s*/, "").replace(/^./, (c) => c.toUpperCase()));
+}
+
+// ------------------------------------------------------------------ graph tab
+function renderGraph(rep) {
+  const box = $("#pane-graph");
+  if (!rep) { box.innerHTML = `<p class="empty">No report.</p>`; return; }
+  const used = new Set();
+  rep.edges.forEach((e) => { used.add(e.from); used.add(e.to); });
+  rep.locks.forEach((l) => l.acquisitions > 0 && used.add(l.id));
+  const nodes = rep.locks.filter((l) => used.has(l.id));
+  if (!nodes.length) { box.innerHTML = `<p class="empty">This program didn't take any locks.</p>`; return; }
+  const sizes = nodes.map((n) => Math.max(n.name.length * 9.5, `${n.acquisitions} acquisitions`.length * 6.4) + 30);
+  const half = Math.max(...sizes) / 2;
+  const two = nodes.length === 2;                  // two locks: side by side instead of top/bottom
+  const W = Math.max(640, nodes.length * 2 * half * 0.9), H = two ? 260 : Math.max(340, 120 + nodes.length * 34);
+  const RX = nodes.length === 1 ? 0 : W / 2 - half - 16, RY = nodes.length === 1 ? 0 : H / 2 - 42;
+  const maxWait = Math.max(1, ...nodes.map((n) => n.wait_ns));
+  const pos = {};
+  nodes.forEach((n, i) => {
+    const a = (two ? Math.PI : -Math.PI / 2) + (2 * Math.PI * i) / nodes.length;
+    pos[n.id] = { x: W / 2 + RX * Math.cos(a), y: H / 2 + RY * Math.sin(a), hw: sizes[i] / 2, hh: 27, n };
+  });
+  const tname = (id) => (rep.threads.find((t) => t.id === id) || {}).name || "T" + id;
+  const has = new Set(rep.edges.map((e) => e.from + ">" + e.to));
+  const clip = (p, dx, dy) => { const t = Math.min(p.hw / Math.abs(dx || 1e-9), p.hh / Math.abs(dy || 1e-9)); return [p.x + dx * t, p.y + dy * t]; };
+  let edges = "", labels = "", boxes = "";
+  for (const e of rep.edges) {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) continue;
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+    const bend = has.has(e.to + ">" + e.from) ? 40 : 0;
+    const qx = (a.x + b.x) / 2 + nx * bend, qy = (a.y + b.y) / 2 + ny * bend;
+    const [x1, y1] = clip(a, qx - a.x, qy - a.y), [x2, y2] = clip(b, qx - b.x, qy - b.y);
+    const cls = e.in_cycle ? "cycle" : e.suppressed ? "sup" : "";
+    edges += `<path class="g-edge ${cls}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${qx.toFixed(1)},${qy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" marker-end="url(#${e.in_cycle ? "ga-red" : "ga"})"><title>${esc(e.site)}</title></path>`;
+    const who = e.threads.slice(0, 3).map(tname).join(", ") + (e.threads.length > 3 ? "…" : "");
+    labels += `<text class="g-label ${cls}" x="${((x1 + 2 * qx + x2) / 4 + nx * 12).toFixed(1)}" y="${((y1 + 2 * qy + y2) / 4 + ny * 12).toFixed(1)}">${esc(who)} ×${e.count}</text>`;
+  }
+  for (const id in pos) {
+    const p = pos[id], n = p.n, heat = n.wait_ns / maxWait;
+    boxes += `<g class="g-node"><title>${esc(n.name)}: waited ${ms(n.wait_ns)} ms in total</title>
+      <rect x="${(p.x - p.hw).toFixed(1)}" y="${(p.y - p.hh).toFixed(1)}" width="${(2 * p.hw).toFixed(1)}" height="${2 * p.hh}" rx="9"
+        style="fill: color-mix(in srgb, var(--red) ${Math.round(heat * 45)}%, var(--lock-soft))"/>
+      <text x="${p.x.toFixed(1)}" y="${(p.y - 7).toFixed(1)}">${esc(n.name)}</text>
+      <text class="sub" x="${p.x.toFixed(1)}" y="${(p.y + 11).toFixed(1)}">${n.acquisitions} acquisitions</text></g>`;
+  }
+  box.innerHTML = `<div class="graph"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Lock-order graph">
+    <defs><marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
+    <marker id="ga-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
+    ${edges}${labels}${boxes}</svg></div>
+    <div class="legend"><span><i class="red"></i>deadlock cycle</span><span><i class="dash"></i>cycle skipped as safe</span><span><i></i>lock order (thread × times)</span><span>redder box = more waiting</span></div>`;
+}
+
+// ------------------------------------------------------------------ contention tab
+function renderContention(rep) {
+  const box = $("#pane-contention");
+  if (!rep) { box.innerHTML = `<p class="empty">No report.</p>`; return; }
+  const locks = rep.locks.filter((l) => l.acquisitions > 0).sort((a, b) => b.wait_ns - a.wait_ns || b.acquisitions - a.acquisitions);
+  if (!locks.length) { box.innerHTML = `<p class="empty">No locks were taken.</p>`; return; }
+  const max = Math.max(1, ...locks.map((l) => l.wait_ns));
+  box.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Lock</th><th class="num">Acquired</th><th class="num">Had to wait</th><th>Total wait (ms)</th><th class="num">Max wait</th><th class="num">Total hold</th></tr></thead><tbody>
+    ${locks.map((l) => `<tr><td class="mono">${esc(l.name)}</td><td class="num">${l.acquisitions}</td><td class="num">${l.contended}</td>
+      <td><span class="meter"><i style="width:${(l.wait_ns / max) * 100}%"></i></span>${ms(l.wait_ns)}</td><td class="num">${ms(l.max_wait_ns)}</td><td class="num">${ms(l.hold_ns)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <h4>Threads</h4><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Started in</th></tr></thead><tbody>
+    ${rep.threads.map((t) => `<tr><td class="mono">${esc(t.name)}</td><td class="mono">${esc(t.start || "")}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// ------------------------------------------------------------------ code tab
+let code = "";
+async function loadCode(p) {
+  code = "";
+  const box = $("#pane-code");
+  if (!p.source) { box.innerHTML = `<p class="empty">No source available for your own program.</p>`; return; }
+  try {
+    const s = await api("/api/source?path=" + encodeURIComponent(p.source));
+    if (selected !== p) return;
+    code = s.text;
+    highlightCode();
+  } catch (e) { box.innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+}
+function highlightCode() {
+  if (!code || !selected || !selected.source) return;
+  const r = results[selected.id];
+  const file = selected.source.split("/").pop().replace(/\./g, "\\.");
+  const hot = new Set();
+  if (r && r !== "running") { const re = new RegExp("\\(" + file + ":(\\d+)\\)", "g"); let m; while ((m = re.exec(r.stderr))) hot.add(+m[1]); }
+  const html = code.split("\n").map((l, i) => {
+    let h = esc(l);
+    h = /^\s*\/\//.test(l) ? `<span class="c">${h}</span>`
+      : h.replace(/\b(pthread_(?:mutex|rwlock|cond)_\w+|sem_\w+|lock_guard)\b/g, `<span class="api">$1</span>`).replace(/(\/\/.*)$/, `<span class="c">$1</span>`);
+    return `<div class="ln${hot.has(i + 1) ? " hl" : ""}" id="L${i + 1}"><span>${i + 1}</span><span>${h || " "}</span></div>`;
+  }).join("");
+  $("#pane-code").innerHTML = (hot.size ? `<p class="note" style="margin:0 0 10px">Highlighted lines are the ones LockSpy reported.</p>` : "") + `<div class="code">${html}</div>`;
+}
+
+// ------------------------------------------------------------------ benchmark charts
+async function loadBench() {
+  let b;
+  try { b = await api("/api/bench"); } catch (e) { b = { available: false }; }
+  if (!b.available) {
+    $("#chart-detect").innerHTML = $("#chart-slow").innerHTML = `<p class="empty">Run <code>make bench</code> to fill this in.</p>`;
+    $("#kpi-slow-note").textContent = "run make bench first";
+    return;
+  }
+  const T = b.tools;
+  const label = { lockspy: "LockSpy", naive: "LockSpy (naive)", tsan: "ThreadSanitizer", helgrind: "Helgrind" };
+  const order = ["lockspy", "naive", "tsan", "helgrind"].filter((t) => T[t]);
+  const total = (t) => T[t].caught + T[t].missed + T[t].false_alarms + T[t].clean;
+  $("#chart-detect").innerHTML = order.map((t) => {
+    const x = T[t], n = total(t);
+    return `<div class="crow${t === "lockspy" ? " us" : ""}"><span class="name">${label[t]}</span>
+      <span class="stack" title="${x.caught} caught, ${x.missed} missed, ${x.false_alarms} false alarms">
+        <i class="c" style="width:${(x.caught / n) * 100}%"></i><i class="m" style="width:${(x.missed / n) * 100}%"></i><i class="f" style="width:${(x.false_alarms / n) * 100}%"></i></span>
+      <span class="val">${x.caught}/${x.caught + x.missed} · ${x.false_alarms} FA</span></div>`;
+  }).join("") + `<div class="ckey"><span><i style="background:var(--green)"></i>bug caught</span><span><i style="background:var(--amber)"></i>bug missed</span><span><i style="background:var(--red)"></i>false alarm</span><span><i style="background:var(--line-2)"></i>correctly silent</span></div>`;
+  const slow = ["lockspy", "tsan", "helgrind"].filter((t) => T[t] && T[t].slowdown);
+  const lg = (v) => Math.log(v) / Math.log(200);
+  $("#chart-slow").innerHTML = slow.map((t) => `<div class="crow${t === "lockspy" ? " us" : ""}"><span class="name">${label[t]}</span>
+      <span class="bar"><i style="width:${Math.max(2, lg(T[t].slowdown) * 100)}%"></i></span><span class="val">${T[t].slowdown}×</span></div>`).join("") +
+    `<div class="axis">${[1, 2, 5, 10, 20, 50, 100, 200].map((v) => `<span style="left:${lg(v) * 100}%">${v}×</span>`).join("")}</div>
+     <p class="note">ThreadSanitizer needs a recompile; LockSpy and Helgrind don't. TSan was faster than LockSpy on the tight uncontended loop (see results/RESULTS.md).</p>`;
+  if (T.lockspy && T.lockspy.slowdown) setKpi("#kpi-slow", T.lockspy.slowdown + "×", "", "");
+  if (T.tsan && T.tsan.slowdown) $("#kpi-slow-note").textContent = `ThreadSanitizer ${T.tsan.slowdown}×, Helgrind ${T.helgrind ? T.helgrind.slowdown + "×" : "–"}`;
+}
+
+// ------------------------------------------------------------------ build / own program / start
+async function rebuild() {
   setBusy(true);
-  setStatus("Building with make…");
+  setStatus("Rebuilding…");
   try {
     const r = await api("/api/build", {});
-    setStatus(r.ok ? "Build finished" : "Build failed (see Raw output)");
-    if (!r.ok) { showTab("output"); $("#tab-output").innerHTML = `<pre class="term">${esc(r.output)}</pre>`; }
+    setStatus(r.ok ? "Build OK" : "Build failed, see the Log tab");
+    if (!r.ok) { showTab("log"); $("#pane-log").innerHTML = `<pre class="term">${esc(r.output)}</pre>`; }
     await loadPrograms();
   } catch (e) { setStatus("Build error: " + e.message); }
   setBusy(false);
 }
 
-function runCustom() {
-  const path = $("#custom-path").value.trim();
-  if (!path) { $("#custom-path").focus(); return; }
-  const args = $("#custom-args").value.trim();
-  const p = { id: (path + " " + args).trim(), program: path, args, mode: "hang", custom: true, expected: [], description: "Your own program, run under LockSpy. If it deadlocks, the watchdog reports it and stops it." };
+$("#own-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const parts = $("#own-path").value.trim().split(/\s+/);
+  if (!parts[0]) return;
+  const p = { id: parts.join(" "), program: parts[0], args: parts.slice(1).join(" "), mode: "hang", custom: true, expected: [],
+    description: "Your own program. If it deadlocks, the watchdog reports it and stops it." };
   select(p);
-  runCurrent();
-}
+  if (!busy) { setBusy(true); await runOne(p); setBusy(false); }
+});
 
 async function loadPrograms() {
   const r = await api("/api/programs");
-  PROGRAMS = r.programs;
+  programs = r.programs;
   renderList();
-  setStatus(r.lib_built ? `${PROGRAMS.length} programs ready` : "LockSpy is not built yet: press Build");
   return r;
 }
 
-$("#run-btn").addEventListener("click", runCurrent);
+$("#run-btn").addEventListener("click", runSelected);
 $("#runall-btn").addEventListener("click", runAll);
-$("#build-btn").addEventListener("click", build);
-$("#custom-btn").addEventListener("click", runCustom);
-$("#custom-args").addEventListener("keydown", (e) => { if (e.key === "Enter") runCustom(); });
+$("#build-btn").addEventListener("click", rebuild);
 
-loadPrograms().then(() => {
-  const first = PROGRAMS.find((p) => p.id === "buggy/ab_ba") || PROGRAMS[0];
-  if (first) select(first);
-}).catch((e) => setStatus("Cannot reach the server: " + e.message));
+(async () => {
+  try {
+    const r = await loadPrograms();
+    select(programs.find((p) => p.id === "buggy/ab_ba") || programs[0]);
+    loadBench();
+    if (!r.lib_built) { setStatus("LockSpy isn't built yet: press Rebuild"); return; }
+    await runAll();          // fill the dashboard straight away
+  } catch (e) { setStatus("Can't reach the server: " + e.message); }
+})();

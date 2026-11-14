@@ -9,6 +9,7 @@ Needs Linux; on a Mac `make ui` runs it inside the Docker container.
 API
   GET  /api/programs          test programs from tests/expected.csv (+ build status)
   GET  /api/source?path=...   source file of a test program, for the code viewer
+  GET  /api/bench             summary of the last benchmark (results/*.csv)
   POST /api/build             run `make`, return its output
   POST /api/run               {"program": "buggy/ab_ba", "args": "", "naive": false,
                                "watchdog_ms": 500, "mode": "run"|"hang"} -> report
@@ -113,6 +114,32 @@ def run_program(req):
                  "stdout": stdout[-20000:], "stderr": stderr[-60000:], "found": found, "report": report}
 
 
+def bench():
+    """Summary of the last `make bench` run (results/detection.csv and overhead.csv)."""
+    tools = {}
+    try:
+        with open(os.path.join(ROOT, "results", "detection.csv")) as f:
+            for r in csv.DictReader(f):
+                t = tools.setdefault(r["tool"], {"caught": 0, "missed": 0, "false_alarms": 0, "clean": 0})
+                key = {"caught": "caught", "missed": "missed", "false alarm": "false_alarms", "clean": "clean"}[r["verdict"]]
+                t[key] += 1
+        times = {}
+        with open(os.path.join(ROOT, "results", "overhead.csv")) as f:
+            for r in csv.DictReader(f):
+                times.setdefault((r["program"], r["tool"]), []).append(float(r["seconds"]))
+    except (OSError, KeyError):
+        return {"available": False}
+    med = {k: sorted(v)[len(v) // 2] for k, v in times.items()}
+    for tool in ("lockspy", "tsan", "helgrind"):
+        ratios = [med[(p, tool)] / med[(p, "bare")] for (p, t) in med if t == tool and (p, "bare") in med]
+        if ratios and tool in tools:
+            prod = 1.0
+            for x in ratios:
+                prod *= x
+            tools[tool]["slowdown"] = round(prod ** (1 / len(ratios)), 1)
+    return {"available": True, "tools": tools}
+
+
 def build():
     p = subprocess.run(["make", "-j4"], cwd=ROOT, capture_output=True, text=True, errors="replace")
     return {"ok": p.returncode == 0, "output": (p.stdout + p.stderr)[-20000:]}
@@ -137,6 +164,8 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/api/programs":
             return self.send_json(200, {"programs": programs(), "lib_built": os.path.exists(LIB)})
+        if url.path == "/api/bench":
+            return self.send_json(200, bench())
         if url.path == "/api/source":
             rel = parse_qs(url.query).get("path", [""])[0]
             full = inside_root(rel)
