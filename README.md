@@ -17,6 +17,8 @@ For each deadlock it also suggests a lock order that fixes it.
 This is our OS Lab project (24B11CS312), B.Tech 3rd year, JIIT, 2026-27.
 Team: Prakhar Agnihotri, Shreesh Goyal, Unnati Joshi, Pragya Sumbly.
 
+New to the project? Start with [docs/INTRO.md](docs/INTRO.md), a plain-language introduction.
+
 ## Running it
 
 You need Linux (Ubuntu) with `g++`, `make` and `binutils`. `graphviz`, `valgrind` and `python3`
@@ -137,6 +139,7 @@ real-world benchmark.
 
 ## Other docs
 
+- [docs/INTRO.md](docs/INTRO.md): simple introduction, start here
 - [docs/EXPLAIN.md](docs/EXPLAIN.md): notes for the viva
 - [docs/DESIGN.md](docs/DESIGN.md): design decisions and problems we ran into
 - [docs/RESUME.md](docs/RESUME.md): resume points
