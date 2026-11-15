@@ -90,9 +90,12 @@ function select(p) {
   $("#d-group").textContent = p.custom ? "your program" : p.group;
   $("#d-name").textContent = p.custom ? p.id : p.program.split("/")[1] + (p.args ? " " + p.args : "");
   $("#d-desc").textContent = p.description || "";
+  $("#run-btn").textContent = p.mine ? "Check code" : "Run";
+  $("#own-btn").classList.toggle("on", !!p.mine);
   renderList();
   renderDetail();
   loadCode(p);
+  if (p.mine) showTab("code");
 }
 
 function renderDetail() {
@@ -102,14 +105,24 @@ function renderDetail() {
   const strip = $("#strip");
   if (!r) {
     strip.className = "result-strip";
-    strip.innerHTML = `Expected: ${tags(p.expected || [])}`;
-    for (const k of ["graph", "report", "contention", "log"]) $("#pane-" + k).innerHTML = `<p class="empty">Not run yet. Press <b>Run</b>.</p>`;
+    strip.innerHTML = p.mine ? `Write your code in the <b>Code</b> tab, then press <b>Check code</b>.` : `Expected: ${tags(p.expected || [])}`;
+    for (const k of ["graph", "report", "contention", "log"]) $("#pane-" + k).innerHTML = `<p class="empty">Not run yet. Press <b>${p.mine ? "Check code" : "Run"}</b>.</p>`;
     tabCount(0);
     return;
   }
   if (r === "running") {
     strip.className = "result-strip run";
-    strip.innerHTML = `<span class="big">Running…</span>${p.mode === "hang" ? " this program really deadlocks; the watchdog stops it after about a second." : ""}`;
+    strip.innerHTML = p.mine ? `<span class="big">Compiling and running…</span> if it freezes, the watchdog stops it after about a second.`
+      : `<span class="big">Running…</span>${p.mode === "hang" ? " this program really deadlocks; the watchdog stops it after about a second." : ""}`;
+    return;
+  }
+  if (r.compile_error) {
+    strip.className = "result-strip fail";
+    strip.innerHTML = `<span class="big fail-t">Didn't compile</span><span>Fix the errors (Log tab) and press Check code again.</span>`;
+    for (const k of ["graph", "report", "contention"]) $("#pane-" + k).innerHTML = `<p class="empty">The code didn't compile, so nothing ran.</p>`;
+    $("#pane-log").innerHTML = `<h4>Compiler errors</h4><pre class="term">${esc(r.compile_error)}</pre>`;
+    tabCount(0);
+    markEditor(r);
     return;
   }
   const v = verdict(p, r);
@@ -125,6 +138,7 @@ function renderDetail() {
     (r.stdout ? `<h4>Program output</h4><pre class="term">${esc(r.stdout)}</pre>` : "");
   tabCount(r.report ? r.report.findings.length : 0);
   highlightCode();
+  markEditor(r);
 }
 
 function tabCount(n) {
@@ -146,6 +160,7 @@ document.addEventListener("click", (e) => {
   const a = e.target.closest("a.src");
   if (!a) return;
   showTab("code");
+  if (selected && selected.mine) return gotoLine(+a.dataset.line);
   const row = document.getElementById("L" + a.dataset.line);
   if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
 });
@@ -157,7 +172,9 @@ async function runOne(p) {
   if (selected === p) renderDetail();
   const naive = $("#opt-naive").checked;
   try {
-    const r = await api("/api/run", { program: p.program, args: p.args, mode: p.mode, naive, watchdog_ms: 500 });
+    const r = p.mine
+      ? await api("/api/check", { code: mine.code, lang: mine.lang, naive, watchdog_ms: 500 })
+      : await api("/api/run", { program: p.program, args: p.args, mode: p.mode, naive, watchdog_ms: 500 });
     r.naive = naive;
     results[p.id] = r;
   } catch (e) {
@@ -175,7 +192,8 @@ async function runSelected() {
   setStatus(`Running ${selected.id}…`);
   await runOne(selected);
   const r = results[selected.id];
-  if (r && r !== "running") setStatus(`${selected.id} finished in ${r.seconds.toFixed(2)} s`);
+  if (r && r.compile_error) setStatus("Your code didn't compile");
+  else if (r && r !== "running") setStatus(`${selected.id} finished in ${r.seconds.toFixed(2)} s`);
   setBusy(false);
 }
 
@@ -307,6 +325,7 @@ let code = "";
 async function loadCode(p) {
   code = "";
   const box = $("#pane-code");
+  if (p.mine) return renderEditor();
   if (!p.source) { box.innerHTML = `<p class="empty">No source available for your own program.</p>`; return; }
   try {
     const s = await api("/api/source?path=" + encodeURIComponent(p.source));
@@ -373,15 +392,212 @@ async function rebuild() {
   setBusy(false);
 }
 
-$("#own-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const parts = $("#own-path").value.trim().split(/\s+/);
-  if (!parts[0]) return;
-  const p = { id: parts.join(" "), program: parts[0], args: parts.slice(1).join(" "), mode: "hang", custom: true, expected: [],
-    description: "Your own program. If it deadlocks, the watchdog reports it and stops it." };
-  select(p);
-  if (!busy) { setBusy(true); await runOne(p); setBusy(false); }
-});
+// ------------------------------------------------------------------ write your own code
+// The code lives in this browser (localStorage) so a reload doesn't lose it.
+const EXAMPLES = {
+  bug: `// Write any pthread program here and press "Check code".
+// This example has the classic AB-BA bug: two threads take locks A and B
+// in opposite orders. It runs them one after the other, so it never actually
+// freezes, but LockSpy still sees the circle A -> B -> A and warns you.
+#include <pthread.h>
+#include <cstdio>
+
+pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
+
+void* transfer_ab(void*) {
+    pthread_mutex_lock(&A);
+    pthread_mutex_lock(&B);      // holds A, takes B
+    puts("moved money A -> B");
+    pthread_mutex_unlock(&B);
+    pthread_mutex_unlock(&A);
+    return nullptr;
+}
+
+void* transfer_ba(void*) {
+    pthread_mutex_lock(&B);
+    pthread_mutex_lock(&A);      // holds B, takes A: opposite order, bug!
+    puts("moved money B -> A");
+    pthread_mutex_unlock(&A);
+    pthread_mutex_unlock(&B);
+    return nullptr;
+}
+
+int main() {
+    pthread_t t1, t2;
+    pthread_create(&t1, nullptr, transfer_ab, nullptr);
+    pthread_join(t1, nullptr);
+    pthread_create(&t2, nullptr, transfer_ba, nullptr);
+    pthread_join(t2, nullptr);
+    return 0;
+}
+`,
+  freeze: `// This one really freezes: both threads grab their first lock, wait for
+// each other at the barrier, then each wants the lock the other holds.
+// LockSpy's watchdog spots the freeze, reports it and stops the program.
+#include <pthread.h>
+#include <cstdio>
+
+pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
+pthread_barrier_t both_ready;
+
+void* transfer_ab(void*) {
+    pthread_mutex_lock(&A);
+    pthread_barrier_wait(&both_ready);
+    pthread_mutex_lock(&B);      // waits forever: Q holds B
+    pthread_mutex_unlock(&B);
+    pthread_mutex_unlock(&A);
+    return nullptr;
+}
+
+void* transfer_ba(void*) {
+    pthread_mutex_lock(&B);
+    pthread_barrier_wait(&both_ready);
+    pthread_mutex_lock(&A);      // waits forever: P holds A
+    pthread_mutex_unlock(&A);
+    pthread_mutex_unlock(&B);
+    return nullptr;
+}
+
+int main() {
+    pthread_barrier_init(&both_ready, nullptr, 2);
+    pthread_t t1, t2;
+    pthread_create(&t1, nullptr, transfer_ab, nullptr);
+    pthread_create(&t2, nullptr, transfer_ba, nullptr);
+    pthread_join(t1, nullptr);
+    pthread_join(t2, nullptr);
+    puts("never printed");
+    return 0;
+}
+`,
+  fixed: `// The fix: every thread takes the locks in the same order, A before B.
+// No circle in the lock graph, so LockSpy stays quiet.
+#include <pthread.h>
+#include <cstdio>
+
+pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
+
+void* transfer_ab(void*) {
+    pthread_mutex_lock(&A);
+    pthread_mutex_lock(&B);
+    puts("moved money A -> B");
+    pthread_mutex_unlock(&B);
+    pthread_mutex_unlock(&A);
+    return nullptr;
+}
+
+void* transfer_ba(void*) {
+    pthread_mutex_lock(&A);      // A first here too
+    pthread_mutex_lock(&B);
+    puts("moved money B -> A");
+    pthread_mutex_unlock(&B);
+    pthread_mutex_unlock(&A);
+    return nullptr;
+}
+
+int main() {
+    pthread_t t1, t2;
+    pthread_create(&t1, nullptr, transfer_ab, nullptr);
+    pthread_create(&t2, nullptr, transfer_ba, nullptr);
+    pthread_join(t1, nullptr);
+    pthread_join(t2, nullptr);
+    return 0;
+}
+`,
+};
+const mine = { code: EXAMPLES.bug, lang: "cpp" };
+try {
+  const saved = JSON.parse(localStorage.getItem("lockspy-mycode") || "null");
+  if (saved && typeof saved.code === "string") Object.assign(mine, saved);
+} catch (e) { /* storage blocked: start from the example */ }
+const saveMine = () => { try { localStorage.setItem("lockspy-mycode", JSON.stringify(mine)); } catch (e) { /* ignore */ } };
+const MINE = { id: "Your code", custom: true, mine: true, expected: [],
+  description: "Your own program, compiled with g++ -pthread and run under LockSpy. If it freezes, the watchdog reports the deadlock and stops it." };
+
+function renderEditor() {
+  $("#pane-code").innerHTML = `
+    <div class="ed-bar">
+      <span>Start from:</span>
+      <button class="chip" type="button" data-ex="bug">Deadlock bug</button>
+      <button class="chip" type="button" data-ex="freeze">Real freeze</button>
+      <button class="chip" type="button" data-ex="fixed">Fixed version</button>
+      <button class="chip" type="button" data-ex="blank">Empty</button>
+      <span class="sp"></span>
+      <label>Language <select id="ed-lang"><option value="cpp">C++</option><option value="c">C</option></select></label>
+    </div>
+    <div class="editor"><div class="ed-gutter" id="ed-gutter"></div>
+      <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Your C or C++ code"></textarea></div>
+    <p class="ed-hint" id="ed-hint">Press <b>Check code</b> (or Ctrl/⌘+Enter). Lines LockSpy reports turn red in the margin.</p>`;
+  const ta = $("#ed-text");
+  ta.value = mine.code;
+  $("#ed-lang").value = mine.lang;
+  $("#ed-lang").addEventListener("change", (e) => { mine.lang = e.target.value; saveMine(); });
+  ta.addEventListener("input", () => { mine.code = ta.value; saveMine(); drawGutter(); });
+  ta.addEventListener("scroll", () => ($("#ed-gutter").scrollTop = ta.scrollTop));
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      ta.setRangeText("    ", ta.selectionStart, ta.selectionEnd, "end");
+      ta.dispatchEvent(new Event("input"));
+    } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      runSelected();
+    }
+  });
+  document.querySelectorAll("[data-ex]").forEach((b) => b.addEventListener("click", () => {
+    const ex = b.dataset.ex;
+    if (mine.code.trim() && mine.code !== EXAMPLES.bug && mine.code !== EXAMPLES.freeze && mine.code !== EXAMPLES.fixed &&
+        !confirm("Replace your code with this example?")) return;
+    mine.code = ex === "blank" ? "#include <pthread.h>\n#include <cstdio>\n\nint main() {\n    \n    return 0;\n}\n" : EXAMPLES[ex];
+    mine.lang = "cpp";
+    saveMine();
+    renderEditor();
+  }));
+  markEditor(results[MINE.id]);
+}
+
+let hotLines = new Set();
+function drawGutter() {
+  const g = $("#ed-gutter");
+  if (!g) return;
+  const n = $("#ed-text").value.split("\n").length;
+  let out = "";
+  for (let i = 1; i <= n; i++) out += (hotLines.has(i) ? `<b>● ${i}</b>` : i) + "\n";
+  g.innerHTML = out;
+}
+// Red margin marks on the lines the report (or the compiler) points at.
+function markEditor(r) {
+  if (!selected || !selected.mine) return;
+  hotLines = new Set();
+  if (r && r !== "running") {
+    const text = (r.compile_error || "") + (r.stderr || "");
+    const re = /mycode\.(?:cpp|c):(\d+)/g;
+    let m;
+    while ((m = re.exec(text))) hotLines.add(+m[1]);
+  }
+  drawGutter();
+  const hint = $("#ed-hint");
+  if (hint && hotLines.size) {
+    const list = [...hotLines].sort((a, b) => a - b);
+    const word = list.length > 1 ? "lines " : "line ";
+    hint.innerHTML = (r.compile_error ? "Compiler errors on " : "LockSpy points at ") + word +
+      list.map((l) => `<a data-goto="${l}">${l}</a>`).join(", ") + ". See the <b>Report</b> tab for what's wrong and how to fix it.";
+    hint.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", () => gotoLine(+a.dataset.goto)));
+  }
+}
+function gotoLine(n) {
+  const ta = $("#ed-text");
+  if (!ta) return;
+  const lines = ta.value.split("\n");
+  const start = lines.slice(0, n - 1).reduce((s, l) => s + l.length + 1, 0);
+  ta.focus();
+  ta.setSelectionRange(start, start + (lines[n - 1] || "").length);
+  const lh = parseFloat(getComputedStyle(ta).lineHeight) || 19;
+  ta.scrollTop = Math.max(0, (n - 6) * lh);
+}
+$("#own-btn").addEventListener("click", () => select(MINE));
 
 async function loadPrograms() {
   const r = await api("/api/programs");

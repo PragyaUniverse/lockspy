@@ -79,9 +79,15 @@ thread notices and says the hang matches the earlier warning:
 ## Web UI
 
 `make ui` starts a small Python server (standard library only) and a page at
-http://localhost:8080. Pick a test program (or type the path of your own), click run, and you get
-the findings, a drawing of the lock graph (cycle in red), a contention table and the source code
-with the reported lines highlighted. "Run all tests" runs the whole suite.
+http://localhost:8080. Pick a test program, click run, and you get the findings, a drawing of the
+lock graph (cycle in red), a contention table and the source code with the reported lines
+highlighted. "Run all tests" runs the whole suite.
+
+"Write your own code" opens an editor: type or paste a C/C++ pthread program and press Check code.
+The server compiles it with the same flags as the tests (`g++ -g -O0 -pthread -rdynamic`), runs it
+under LockSpy (the watchdog stops it if it freezes) and shows the results the same way, with red
+marks next to the lines LockSpy points at. There are three examples to start from: the AB-BA bug, a
+real freeze, and the fixed version.
 
 ## How it works
 

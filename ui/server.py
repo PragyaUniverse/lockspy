@@ -13,6 +13,8 @@ API
   POST /api/build             run `make`, return its output
   POST /api/run               {"program": "buggy/ab_ba", "args": "", "naive": false,
                                "watchdog_ms": 500, "mode": "run"|"hang"} -> report
+  POST /api/check             {"code": "...C/C++ source...", "naive": false} -> compile it
+                               with g++, run it under LockSpy, same answer as /api/run
 """
 import argparse
 import csv
@@ -84,7 +86,11 @@ def run_program(req):
         return 400, {"error": f"program not found: {prog} (build it with the Build button)"}
     if not os.path.exists(LIB):
         return 400, {"error": "build/libLockSpy.so is missing: press Build first"}
-    args = shlex.split(str(req.get("args", "")))
+    return run_exe(exe, prog, shlex.split(str(req.get("args", ""))), req)
+
+
+def run_exe(exe, name, args, req):
+    """Run one binary with LockSpy preloaded and collect its JSON report."""
     mode = req.get("mode", "run")
     with tempfile.TemporaryDirectory(prefix="lockspy-ui-") as out:
         env = dict(os.environ,
@@ -109,9 +115,40 @@ def run_program(req):
             with open(path) as f:
                 report = json.load(f)
     found = sorted({f["type"] for f in (report or {}).get("findings", [])})
-    return 200, {"program": prog, "args": " ".join(args), "rc": rc, "timed_out": timed_out,
+    return 200, {"program": name, "args": " ".join(args), "rc": rc, "timed_out": timed_out,
                  "aborted": rc == -6 or rc == 134, "seconds": round(seconds, 3),
                  "stdout": stdout[-20000:], "stderr": stderr[-60000:], "found": found, "report": report}
+
+
+def check_code(req):
+    """Compile code typed into the page and run it under LockSpy."""
+    src = str(req.get("code", ""))
+    if not src.strip():
+        return 400, {"error": "write some code first"}
+    if len(src) > 200_000:
+        return 400, {"error": "that's too much code for the box (200 KB max)"}
+    if not os.path.exists(LIB):
+        return 400, {"error": "build/libLockSpy.so is missing: press Rebuild first"}
+    with tempfile.TemporaryDirectory(prefix="lockspy-check-") as d:
+        # Same flags as the test programs, so LockSpy can name files and lines.
+        lang = "c" if req.get("lang") == "c" else "c++"
+        path = os.path.join(d, "mycode.c" if lang == "c" else "mycode.cpp")
+        with open(path, "w") as f:
+            f.write(src)
+        exe = os.path.join(d, "mycode")
+        cmd = ["gcc", "-std=gnu11"] if lang == "c" else ["g++", "-std=c++17"]
+        cmd += ["-g", "-O0", "-rdynamic", "-pthread", "-no-pie", "-Wall", path, "-o", exe]
+        try:
+            c = subprocess.run(cmd, cwd=d, capture_output=True, text=True, errors="replace", timeout=60)
+        except subprocess.TimeoutExpired:
+            return 200, {"compile_error": "the compiler took more than 60 seconds"}
+        warnings = c.stderr.replace(d + os.sep, "")
+        if c.returncode != 0:
+            return 200, {"compile_error": warnings[-20000:]}
+        req = dict(req, mode="hang", timeout=min(float(req.get("timeout", 15)), 30))
+        code, out = run_exe(exe, "mycode", [], req)
+        out["compiler"] = warnings[-20000:]
+        return code, out
 
 
 def bench():
@@ -195,6 +232,9 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/run":
             code, obj = run_program(req)
+            return self.send_json(code, obj)
+        if path == "/api/check":
+            code, obj = check_code(req)
             return self.send_json(code, obj)
         if path == "/api/build":
             return self.send_json(200, build())

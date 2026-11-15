@@ -124,13 +124,10 @@
         </div>
       </div>
       <ul class="plist" id="plist"></ul>
-      <form class="own" id="own-form">
-        <label for="own-path">Run your own program</label>
-        <div class="own-row">
-          <input id="own-path" type="text" placeholder="./build/tests/buggy/ab_ba --hang" spellcheck="false" autocomplete="off">
-          <button class="btn ghost" type="submit">Run</button>
-        </div>
-      </form>
+      <div class="own">
+        <button class="btn ghost own-btn" id="own-btn" type="button">✎ Write your own code</button>
+        <p class="own-note">Type or paste a C/C++ pthread program. LockSpy compiles it, runs it and checks it.</p>
+      </div>
     </div>
 
     <div class="card detail-card" id="detail">
