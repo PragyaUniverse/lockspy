@@ -11,6 +11,30 @@ const KIND = {
 };
 const nice = (k) => KIND[k] || k;
 
+// Plain-English names for the test programs (the file name is still shown, smaller).
+const NAMES = {
+  "buggy/ab_ba": "Bank transfer, opposite lock order",
+  "buggy/ab_ba --hang": "Bank transfer, forced to freeze",
+  "buggy/philosophers_naive": "Dining philosophers, freezes",
+  "buggy/philosophers_naive --no-hang": "Dining philosophers, one at a time",
+  "buggy/producer_consumer_bad": "Producer–consumer, wrong lock order",
+  "buggy/readers_writers_bad": "Readers–writers, wrong lock order",
+  "buggy/recursive_lock": "Locking the same lock twice",
+  "buggy/bad_unlock": "Unlocking a lock you don't hold",
+  "buggy/lock_held_at_exit": "Forgot to unlock before exiting",
+  "correct/philosophers_ordered": "Dining philosophers, fixed",
+  "correct/producer_consumer_ok": "Producer–consumer, fixed",
+  "correct/readers_writers_ok": "Readers–writers, fixed",
+  "correct/consistent_order": "Bank transfer, fixed",
+  "tricky/gate_lock_safe": "Both orders, but behind a gate lock",
+  "tricky/trylock_backoff": "Both orders, but with try-lock",
+  "tricky/single_thread_both_orders": "Both orders, but only one thread",
+  "perf/contention_heavy 2000": "Busy locks, 8 threads",
+  "perf/uncontended_loop 200000": "Fast lock/unlock loop",
+};
+const title = (p) => (p.custom ? p.id : NAMES[p.id] || p.program.split("/")[1] + (p.args ? " " + p.args : ""));
+const fileName = (p) => p.program.split("/")[1] + ".cpp" + (p.args ? " " + p.args : "");
+
 let programs = [];
 let selected = null;
 let filter = "all";
@@ -67,12 +91,12 @@ function renderList() {
     const r = results[p.id];
     const v = verdict(p, r);
     const ico = r === "running" ? `<span class="ico run"></span>` : v === "pass" ? `<span class="ico pass">✓</span>` : v === "fail" ? `<span class="ico fail">!</span>` : `<span class="ico">·</span>`;
-    const name = esc(p.program.split("/")[1]) + (p.args ? ` <small>${esc(p.args)}</small>` : "");
+    const name = esc(title(p));
     const meta = r && r !== "running" ? (r.found.length ? r.found.map(nice).join(", ") : "no warnings")
       : `expects ${p.expected.length ? p.expected.map(nice).join(", ").toLowerCase() : "no warnings"}`;
     const li = document.createElement("li");
     li.innerHTML = `<button type="button" class="prow${selected && selected.id === p.id ? " on" : ""}">${ico}
-      <span class="pmain"><div class="pname">${name}</div><div class="pmeta">${esc(meta)}</div></span>
+      <span class="pmain"><div class="pname">${name}</div><div class="pmeta"><code class="pfile">${esc(fileName(p))}</code> · ${esc(meta)}</div></span>
       <span class="ptime">${r && r !== "running" ? r.seconds.toFixed(2) + "s" : ""}</span></button>`;
     li.firstElementChild.addEventListener("click", () => select(p));
     ul.appendChild(li);
@@ -87,8 +111,8 @@ document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", ()
 // ------------------------------------------------------------------ detail panel
 function select(p) {
   selected = p;
-  $("#d-group").textContent = p.custom ? "your program" : p.group;
-  $("#d-name").textContent = p.custom ? p.id : p.program.split("/")[1] + (p.args ? " " + p.args : "");
+  $("#d-group").textContent = p.custom ? "your program" : `${p.group} · ${fileName(p)}`;
+  $("#d-name").textContent = title(p);
   $("#d-desc").textContent = p.description || "";
   renderList();
   renderDetail();
