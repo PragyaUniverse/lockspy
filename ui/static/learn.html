@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn: deadlocks · LockSpy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="logo" href="/" style="color:inherit;text-decoration:none">
+      <span class="logo-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 26 26"><rect x="2" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="14" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M7 9V6a6 6 0 0 1 12 0v3" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>
+      </span>
+      <div><div class="logo-name">LockSpy</div><div class="logo-sub">Deadlock &amp; lock-contention detector</div></div>
+    </a>
+    <nav class="nav-tabs" aria-label="Pages">
+      <a href="/">Dashboard</a>
+      <a href="/learn.html" class="on" aria-current="page">Learn</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page learn">
+  <div class="parts" id="parts" aria-label="Lesson parts"></div>
+
+  <section class="card lesson">
+    <div class="lesson-head">
+      <div>
+        <div class="crumb" id="l-part"></div>
+        <h1 id="l-title"></h1>
+      </div>
+      <div class="l-count" id="l-count"></div>
+    </div>
+
+    <div class="lesson-grid">
+      <div class="stage-col">
+        <div class="stage" id="stage">
+          <svg viewBox="0 0 560 330" id="scene" role="img" aria-labelledby="scene-desc">
+            <desc id="scene-desc">Threads P and Q and locks A and B</desc>
+            <defs>
+              <marker id="m-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-grey"/></marker>
+              <marker id="m-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-red"/></marker>
+              <marker id="m-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-p"/></marker>
+              <marker id="m-q" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="mk-q"/></marker>
+            </defs>
+            <!-- edges: "held by" (lock -> thread, solid) and "wants" (thread -> lock, dashed) -->
+            <g id="edges"></g>
+            <!-- locks -->
+            <g class="s-lock" id="lock-A" transform="translate(280 62)">
+              <rect x="-62" y="-30" width="124" height="60" rx="12"/>
+              <text class="s-name" y="-6">Lock A</text><text class="s-sub" y="14" id="lock-A-sub">free</text>
+            </g>
+            <g class="s-lock" id="lock-B" transform="translate(280 268)">
+              <rect x="-62" y="-30" width="124" height="60" rx="12"/>
+              <text class="s-name" y="-6">Lock B</text><text class="s-sub" y="14" id="lock-B-sub">free</text>
+            </g>
+            <!-- threads -->
+            <g class="s-thread tp" id="th-P" transform="translate(80 165)">
+              <circle r="38"/><text class="s-big">P</text>
+              <text class="s-status" y="60" id="th-P-sub">ready</text>
+            </g>
+            <g class="s-thread tq" id="th-Q" transform="translate(480 165)">
+              <circle r="38"/><text class="s-big">Q</text>
+              <text class="s-status" y="60" id="th-Q-sub">ready</text>
+            </g>
+            <g id="banner" class="s-banner" transform="translate(280 165)" opacity="0">
+              <rect x="-78" y="-17" width="156" height="34" rx="17"/><text>DEADLOCK</text>
+            </g>
+          </svg>
+        </div>
+        <p class="caption" id="caption" aria-live="polite"></p>
+      </div>
+
+      <div class="side-col">
+        <div class="codes">
+          <div class="codebox cp"><div class="code-h"><span class="dot"></span>Thread P <code>worker_p()</code></div><ol id="code-P"></ol></div>
+          <div class="codebox cq"><div class="code-h"><span class="dot"></span>Thread Q <code>worker_q()</code></div><ol id="code-Q"></ol></div>
+        </div>
+        <div class="spy" id="spy"></div>
+      </div>
+    </div>
+
+    <div class="lesson-nav">
+      <button class="btn ghost" id="l-back" type="button">← Back</button>
+      <div class="l-dots" id="l-dots"></div>
+      <button class="btn primary" id="l-next" type="button">Next →</button>
+    </div>
+  </section>
+  <p class="learn-foot">Tip: use the ← → arrow keys. Everything here matches the real test program <code>tests/buggy/ab_ba.cpp</code>
+    and its fixed version <code>tests/correct/consistent_order.cpp</code>.</p>
+</main>
+<script src="/learn.js"></script>
+</body>
+</html>
