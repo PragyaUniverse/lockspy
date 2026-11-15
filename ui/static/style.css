@@ -117,7 +117,6 @@ code { font-family: var(--mono); font-size: .88em; }
 .pname { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pname small { font-weight: 400; color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin-left: 4px; }
 .pmeta { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pfile { font-size: 11px; }
 .ptime { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
 .tag.bad { background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
@@ -130,7 +129,7 @@ code { font-family: var(--mono); font-size: .88em; }
 
 .detail-head { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px 12px; flex-wrap: wrap; }
 .detail-title { min-width: 0; flex: 1 1 320px; }
-.crumb { font-size: 12px; font-weight: 600; color: var(--accent); }
+.crumb { font-size: 12px; font-weight: 600; color: var(--accent); text-transform: capitalize; }
 .detail-title h2 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; margin-top: 2px; word-break: break-word; }
 .d-desc { color: var(--muted); margin-top: 6px; max-width: 70ch; }
 .detail-actions { display: flex; align-items: center; gap: 14px; }
