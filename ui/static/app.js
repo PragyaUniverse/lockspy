@@ -13,8 +13,8 @@ const nice = (k) => KIND[k] || k;
 
 // Plain-English names for the test programs (the file name is still shown, smaller).
 const NAMES = {
-  "buggy/ab_ba": "AB–BA deadlock (no freeze)",
-  "buggy/ab_ba --hang": "AB–BA deadlock (freezes)",
+  "buggy/ab_ba": "Bank transfer, opposite lock order",
+  "buggy/ab_ba --hang": "Bank transfer, forced to freeze",
   "buggy/philosophers_naive": "Dining philosophers, freezes",
   "buggy/philosophers_naive --no-hang": "Dining philosophers, one at a time",
   "buggy/producer_consumer_bad": "Producer–consumer, wrong lock order",
@@ -25,7 +25,7 @@ const NAMES = {
   "correct/philosophers_ordered": "Dining philosophers, fixed",
   "correct/producer_consumer_ok": "Producer–consumer, fixed",
   "correct/readers_writers_ok": "Readers–writers, fixed",
-  "correct/consistent_order": "AB–BA fixed (same lock order)",
+  "correct/consistent_order": "Bank transfer, fixed",
   "tricky/gate_lock_safe": "Both orders, but behind a gate lock",
   "tricky/trylock_backoff": "Both orders, but with try-lock",
   "tricky/single_thread_both_orders": "Both orders, but only one thread",
