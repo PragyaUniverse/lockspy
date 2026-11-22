@@ -6,65 +6,57 @@
 <title>LockSpy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,600;1,8..60,400&display=swap">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body class="ide">
-<div class="app">
-  <!-- left: project tree, like a file explorer -->
-  <aside class="side" aria-label="Project">
-    <div class="side-top">
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="logo">
       <span class="logo-mark" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 26 26"><rect x="2" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.6"/><rect x="14" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M7 9V6a6 6 0 0 1 12 0v3" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>
+        <svg width="18" height="18" viewBox="0 0 26 26"><rect x="2" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="14" y="9" width="10" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M7 9V6a6 6 0 0 1 12 0v3" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>
       </span>
-      <b class="side-name">lockspy</b>
-      <nav class="side-nav" aria-label="Pages"><a href="/" class="on" aria-current="page">tests</a><a href="/learn.html">learn</a></nav>
+      <div>
+        <div class="logo-name">LockSpy</div>
+        <div class="logo-sub">finds deadlocks in pthread programs</div>
+      </div>
     </div>
-    <div class="side-actions">
-      <button class="btn primary sm" id="runall-btn" type="button">
-        <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
-        Run all tests</button>
-      <button class="btn ghost sm" id="build-btn" type="button">Rebuild</button>
+    <nav class="nav-tabs" aria-label="Pages">
+      <a href="/" class="on" aria-current="page">Dashboard</a>
+      <a href="/learn.html">Learn</a>
+    </nav>
+    <div class="top-actions">
+      <span class="status" id="status">Starting…</span>
+      <button class="btn ghost" id="build-btn" type="button">Rebuild</button>
+      <button class="btn primary" id="runall-btn" type="button">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
+        Run all tests
+      </button>
     </div>
-    <div class="tree" id="tree">
-      <div class="tree-h">project</div>
-      <button class="titem" id="nav-about" type="button"><span class="ti-ico">i</span>README</button>
-      <button class="titem" id="nav-bench" type="button"><span class="ti-ico">%</span>benchmark results</button>
-      <button class="titem" id="own-btn" type="button"><span class="ti-ico">+</span>mycode.cpp <small>write your own</small></button>
-      <ul class="plist" id="plist"></ul>
-    </div>
-  </aside>
+  </div>
+  <div class="progress" id="progress"><div id="progress-bar"></div></div>
+</header>
 
-  <main class="main">
-    <!-- README view -->
-    <section class="view about" id="view-about" hidden aria-labelledby="intro-title">
-      <div class="crumb">README</div>
-      <div class="intro-grid">
-        <div class="intro-text">
-          <h1 id="intro-title">LockSpy</h1>
-          <p class="lede">Finds deadlocks in multithreaded C/C++ programs while they run.</p>
-          <p>Two threads, two locks. Thread P takes lock A and then B; thread Q takes B and then A. Most of the
-            time they miss each other and the program is fine. Once in a while both grab their first lock at the
-            same moment, and then each waits for the other forever. Tests rarely catch this because it depends on timing.</p>
-          <p>LockSpy sits between the program and the pthread library (via <code>LD_PRELOAD</code>, so no recompiling)
-            and keeps track of which thread holds which lock. It looks for two things:</p>
-          <ol class="intro-steps">
-            <li>a <b>cycle in the lock order</b>: somewhere A was taken before B and somewhere else B before A.
-              That's a <span class="tag bad">Potential deadlock</span>, even if this run got lucky.</li>
-            <li>threads that are <b>actually stuck</b> waiting on each other. A watchdog checks every half second;
-              if it finds a cycle, that's a <span class="tag bad">Live deadlock</span>.</li>
-          </ol>
-          <p>For each one it says which lines took the locks and what order to use instead.</p>
-          <h2>Using this page</h2>
-          <p>All the tests run once when the page opens; the bar at the bottom keeps the score. Pick a program on the
-            left to see its lock graph, the report and the lines involved. <b>ab_ba</b> and <b>philosophers_naive</b>
-            are good ones to start with. Turn on <i>Naive mode</i> and re-run a <i>tricky</i> program to see the false
-            alarms LockSpy normally filters out. <b>mycode.cpp</b> lets you paste your own program.</p>
-          <p>New to deadlocks? <a href="/learn.html">The learn page</a> walks through one step by step.</p>
-          <p class="byline">Made by Prakhar Agnihotri, Shreesh Goyal, Unnati Joshi and Pragya Sumbly for the
-            Operating Systems lab (24B11CS312), JIIT.</p>
-        </div>
-    <figure class="intro-fig">
+<main class="page">
+  <section class="card intro" id="intro" aria-labelledby="intro-title">
+    <button class="intro-hide" id="intro-hide" type="button">hide this</button>
+    <div class="intro-grid">
+      <div class="intro-text">
+        <h1 id="intro-title">A deadlock detector you can watch work</h1>
+        <p>Two threads, two locks. Thread P takes lock A and then B; thread Q takes B and then A. Most of the
+          time they miss each other and the program is fine. Once in a while both grab their first lock at the
+          same moment, and then each waits for the other forever. Tests rarely catch this because it depends on timing.</p>
+        <p>LockSpy sits between the program and the pthread library (via <code>LD_PRELOAD</code>, so no recompiling)
+          and keeps track of which thread holds which lock. It looks for two things:</p>
+        <ol class="intro-steps">
+          <li>a <b>cycle in the lock order</b>: somewhere A was taken before B and somewhere else B before A.
+            That's a <span class="tag bad">Potential deadlock</span>, even if this run got lucky.</li>
+          <li>threads that are <b>actually stuck</b> waiting on each other. A watchdog checks every half second;
+            if it finds a cycle, that's a <span class="tag bad">Live deadlock</span>.</li>
+        </ol>
+        <p>For each one it says which lines took the locks and what order to use instead.</p>
+      </div>
+      <figure class="intro-fig">
         <svg viewBox="0 0 300 210" role="img" aria-label="Thread P holds lock A and waits for B; thread Q holds B and waits for A">
           <defs><marker id="ia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ia-head"/></marker></defs>
           <path class="ia-line" d="M84 70 L196 70" marker-end="url(#ia)"/>
@@ -82,25 +74,62 @@
         </svg>
         <figcaption>Fig. 1: P holds A and wants B, Q holds B and wants A.</figcaption>
       </figure>
+    </div>
+    <div class="intro-how">
+      The tests below run by themselves when the page loads. Click any program to see its lock graph, the report
+      and the lines involved; <b>ab_ba</b> and <b>philosophers_naive</b> are good ones to start with.
+      Turn on <i>Naive mode</i> and re-run a <i>tricky</i> program to see the false alarms LockSpy normally filters out.
+      If the idea is new to you, <a href="/learn.html">the Learn page</a> walks through it step by step.
+    </div>
+  </section>
+  <button class="intro-show" id="intro-show" type="button" hidden>show the introduction</button>
+
+  <section class="kpis" aria-label="Summary">
+    <div class="kpi" id="kpi-bugs">
+      <div class="kpi-label">Bugs caught</div>
+      <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
+      <div class="kpi-note">of the buggy programs</div>
+    </div>
+    <div class="kpi" id="kpi-fp">
+      <div class="kpi-label">False alarms</div>
+      <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
+      <div class="kpi-note">on programs that are fine</div>
+    </div>
+    <div class="kpi" id="kpi-pass">
+      <div class="kpi-label">Tests passed</div>
+      <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
+      <div class="kpi-bar"><div></div></div>
+    </div>
+    <div class="kpi" id="kpi-slow">
+      <div class="kpi-label">Slowdown</div>
+      <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
+      <div class="kpi-note" id="kpi-slow-note">from the last benchmark</div>
+    </div>
+  </section>
+
+  <section class="work">
+    <div class="card list-card">
+      <div class="card-head">
+        <h2>Programs</h2>
+        <div class="filters" role="tablist" aria-label="Filter programs">
+          <button class="chip on" data-f="all" type="button">All</button>
+          <button class="chip" data-f="buggy" type="button">Buggy</button>
+          <button class="chip" data-f="correct" type="button">Correct</button>
+          <button class="chip" data-f="tricky" type="button">Tricky</button>
+          <button class="chip" data-f="perf" type="button">Perf</button>
+        </div>
       </div>
-    </section>
+      <ul class="plist" id="plist"></ul>
+      <div class="own">
+        <button class="btn ghost own-btn" id="own-btn" type="button">Write your own code</button>
+        <p class="own-note">Paste a C/C++ pthread program and we'll compile it, run it and check it.</p>
+      </div>
+    </div>
 
-    <!-- benchmark view -->
-    <section class="view bench-view" id="view-bench" hidden>
-      <div class="crumb">results/RESULTS.md</div>
-      <h1>Benchmark results</h1>
-      <p class="muted">From the last <code>make bench</code>. Same 16 programs for every tool.</p>
-      <h2>Detection</h2>
-      <div id="chart-detect" class="chart"></div>
-      <h2>Slowdown <span class="muted">(geometric mean, log scale)</span></h2>
-      <div id="chart-slow" class="chart"></div>
-    </section>
-
-    <!-- program view -->
-    <section class="view" id="view-prog">
-      <div class="toolbar">
+    <div class="card detail-card" id="detail">
+      <div class="detail-head">
         <div class="detail-title">
-          <div class="crumb" id="d-group">tests/buggy</div>
+          <div class="crumb" id="d-group">buggy</div>
           <h2 id="d-name">Select a program</h2>
           <p class="d-desc" id="d-desc"></p>
         </div>
@@ -122,19 +151,24 @@
       <div class="pane" id="pane-contention" hidden></div>
       <div class="pane" id="pane-code" hidden></div>
       <div class="pane" id="pane-log" hidden></div>
-    </section>
-  </main>
+    </div>
+  </section>
 
-  <!-- bottom: status bar with the score -->
-  <footer class="statusbar">
-    <span class="sb-status"><span class="progress" id="progress"><span id="progress-bar"></span></span><span id="status">Starting…</span></span>
-    <span class="kpi" id="kpi-pass">tests <span class="v">–</span><span class="of"></span></span>
-    <span class="kpi" id="kpi-bugs">bugs caught <span class="v">–</span><span class="of"></span></span>
-    <span class="kpi" id="kpi-fp">false alarms <span class="v">–</span><span class="of"></span></span>
-    <span class="kpi" id="kpi-slow" title="">slowdown <span class="v">–</span><span class="of"></span><span id="kpi-slow-note" hidden></span></span>
-    <span class="sb-team">OS Lab 24B11CS312 · JIIT</span>
-  </footer>
-</div>
+  <section class="bench">
+    <div class="card">
+      <div class="card-head"><h2>Detection vs other tools</h2><span class="muted">same 16 programs for every tool</span></div>
+      <div id="chart-detect" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Slowdown</h2><span class="muted">geometric mean, log scale</span></div>
+      <div id="chart-slow" class="chart"></div>
+    </div>
+  </section>
+</main>
+<footer class="foot">
+  <span>LockSpy · OS Lab project (24B11CS312), JIIT</span>
+  <span>Prakhar Agnihotri, Shreesh Goyal, Unnati Joshi, Pragya Sumbly</span>
+</footer>
 <script src="/app.js"></script>
 </body>
 </html>

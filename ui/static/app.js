@@ -13,7 +13,7 @@ const nice = (k) => KIND[k] || k;
 
 let programs = [];
 let selected = null;
-let view = "prog";          // "prog" | "about" | "bench"
+let filter = "all";
 let busy = false;
 const results = {};       // program id -> run result, or "running"
 
@@ -56,60 +56,43 @@ function updateKpis() {
   setKpi("#kpi-bugs", caught, `/ ${buggy.length}`, caught === buggy.length ? "good" : allDone ? "bad" : "");
   setKpi("#kpi-fp", fps, `/ ${safe.length}`, fps === 0 ? "good" : "bad");
   setKpi("#kpi-pass", passed, `/ ${programs.length}`, passed === programs.length ? "good" : allDone ? "bad" : "");
+  $("#kpi-pass .kpi-bar div").style.width = (passed / programs.length) * 100 + "%";
 }
 
 // ------------------------------------------------------------------ program list
-const FOLDERS = ["buggy", "correct", "tricky", "perf"];
 function renderList() {
   const ul = $("#plist");
   ul.innerHTML = "";
-  for (const folder of FOLDERS) {
-    const group = programs.filter((x) => x.group === folder);
-    if (!group.length) continue;
-    const ok = group.filter((p) => verdict(p, results[p.id]) === "pass").length;
-    const ran = group.filter((p) => results[p.id] && results[p.id] !== "running").length;
-    const head = document.createElement("li");
-    head.className = "folder";
-    head.innerHTML = `<span>tests/${folder}/</span><span>${ran ? `${ok}/${group.length}` : group.length}</span>`;
-    ul.appendChild(head);
-    for (const p of group) {
-      const r = results[p.id];
-      const v = verdict(p, r);
-      const ico = r === "running" ? `<span class="ico run"></span>` : v === "pass" ? `<span class="ico pass">✓</span>` : v === "fail" ? `<span class="ico fail">!</span>` : `<span class="ico">·</span>`;
-      const name = esc(p.program.split("/")[1]) + (p.args ? ` <small>${esc(p.args)}</small>` : "");
-      const meta = r && r !== "running" ? (r.found.length ? r.found.map(nice).join(", ") : "no warnings")
-        : `expects ${p.expected.length ? p.expected.map(nice).join(", ").toLowerCase() : "no warnings"}`;
-      const li = document.createElement("li");
-      li.innerHTML = `<button type="button" class="prow${view === "prog" && selected && selected.id === p.id ? " on" : ""}" title="${esc(meta)}">${ico}
-        <span class="pmain"><div class="pname">${name}</div><div class="pmeta">${esc(meta)}</div></span>
-        <span class="ptime">${r && r !== "running" ? r.seconds.toFixed(2) + "s" : ""}</span></button>`;
-      li.firstElementChild.addEventListener("click", () => select(p));
-      ul.appendChild(li);
-    }
+  for (const p of programs.filter((x) => filter === "all" || x.group === filter)) {
+    const r = results[p.id];
+    const v = verdict(p, r);
+    const ico = r === "running" ? `<span class="ico run"></span>` : v === "pass" ? `<span class="ico pass">✓</span>` : v === "fail" ? `<span class="ico fail">!</span>` : `<span class="ico">·</span>`;
+    const name = esc(p.program.split("/")[1]) + (p.args ? ` <small>${esc(p.args)}</small>` : "");
+    const meta = r && r !== "running" ? (r.found.length ? r.found.map(nice).join(", ") : "no warnings")
+      : `expects ${p.expected.length ? p.expected.map(nice).join(", ").toLowerCase() : "no warnings"}`;
+    const li = document.createElement("li");
+    li.innerHTML = `<button type="button" class="prow${selected && selected.id === p.id ? " on" : ""}">${ico}
+      <span class="pmain"><div class="pname">${name}</div><div class="pmeta">${esc(meta)}</div></span>
+      <span class="ptime">${r && r !== "running" ? r.seconds.toFixed(2) + "s" : ""}</span></button>`;
+    li.firstElementChild.addEventListener("click", () => select(p));
+    ul.appendChild(li);
   }
 }
-
-// README / benchmark / program: only one is shown on the right at a time
-function showView(name) {
-  view = name;
-  for (const v of ["prog", "about", "bench"]) $("#view-" + v).hidden = v !== name;
-  $("#nav-about").classList.toggle("on", name === "about");
-  $("#nav-bench").classList.toggle("on", name === "bench");
-  $("#own-btn").classList.toggle("on", name === "prog" && !!(selected && selected.mine));
-  $(".main").scrollTop = 0;
+document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+  filter = c.dataset.f;
+  document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === c));
   renderList();
-}
-$("#nav-about").addEventListener("click", () => showView("about"));
-$("#nav-bench").addEventListener("click", () => showView("bench"));
+}));
 
 // ------------------------------------------------------------------ detail panel
 function select(p) {
   selected = p;
-  $("#d-group").textContent = p.mine ? "your own program" : p.custom ? "your program" : p.source;
-  $("#d-name").textContent = p.mine ? "mycode.cpp" : p.custom ? p.id : p.program.split("/")[1] + (p.args ? " " + p.args : "");
+  $("#d-group").textContent = p.custom ? "your program" : p.group;
+  $("#d-name").textContent = p.custom ? p.id : p.program.split("/")[1] + (p.args ? " " + p.args : "");
   $("#d-desc").textContent = p.description || "";
   $("#run-btn").textContent = p.mine ? "Check code" : "Run";
-  showView("prog");
+  $("#own-btn").classList.toggle("on", !!p.mine);
+  renderList();
   renderDetail();
   loadCode(p);
   if (p.mine) showTab("code");
@@ -393,7 +376,7 @@ async function loadBench() {
     `<div class="axis">${[1, 2, 5, 10, 20, 50, 100, 200].map((v) => `<span style="left:${lg(v) * 100}%">${v}×</span>`).join("")}</div>
      <p class="note">ThreadSanitizer needs a recompile; LockSpy and Helgrind don't. TSan was faster than LockSpy on the tight uncontended loop (see results/RESULTS.md).</p>`;
   if (T.lockspy && T.lockspy.slowdown) setKpi("#kpi-slow", T.lockspy.slowdown + "×", "", "");
-  if (T.tsan && T.tsan.slowdown) $("#kpi-slow").title = `LockSpy's slowdown. ThreadSanitizer ${T.tsan.slowdown}×, Helgrind ${T.helgrind ? T.helgrind.slowdown + "×" : "–"}`;
+  if (T.tsan && T.tsan.slowdown) $("#kpi-slow-note").textContent = `ThreadSanitizer ${T.tsan.slowdown}×, Helgrind ${T.helgrind ? T.helgrind.slowdown + "×" : "–"}`;
 }
 
 // ------------------------------------------------------------------ build / own program / start
@@ -530,7 +513,7 @@ try {
   if (saved && typeof saved.code === "string") Object.assign(mine, saved);
 } catch (e) { /* storage blocked: start from the example */ }
 const saveMine = () => { try { localStorage.setItem("lockspy-mycode", JSON.stringify(mine)); } catch (e) { /* ignore */ } };
-const MINE = { id: "mycode.cpp", custom: true, mine: true, expected: [],
+const MINE = { id: "Your code", custom: true, mine: true, expected: [],
   description: "Your own program, compiled with g++ -pthread and run under LockSpy. If it freezes, the watchdog reports the deadlock and stops it." };
 
 function renderEditor() {
@@ -623,9 +606,15 @@ async function loadPrograms() {
   return r;
 }
 
-// First visit in this browser: open on the README instead of a program.
-let firstVisit = false;
-try { firstVisit = !localStorage.getItem("lockspy-seen"); localStorage.setItem("lockspy-seen", "1"); } catch (e) { /* storage blocked */ }
+// intro panel: hide/show, remembered in this browser only
+function showIntro(on) {
+  $("#intro").hidden = !on;
+  $("#intro-show").hidden = on;
+  try { localStorage.setItem("lockspy-intro", on ? "1" : "0"); } catch (e) { /* storage blocked: fine */ }
+}
+$("#intro-hide").addEventListener("click", () => showIntro(false));
+$("#intro-show").addEventListener("click", () => showIntro(true));
+try { if (localStorage.getItem("lockspy-intro") === "0") showIntro(false); } catch (e) { /* ignore */ }
 
 $("#run-btn").addEventListener("click", runSelected);
 $("#runall-btn").addEventListener("click", runAll);
@@ -635,7 +624,6 @@ $("#build-btn").addEventListener("click", rebuild);
   try {
     const r = await loadPrograms();
     select(programs.find((p) => p.id === "buggy/ab_ba") || programs[0]);
-    if (firstVisit) showView("about");
     loadBench();
     if (!r.lib_built) { setStatus("LockSpy isn't built yet: press Rebuild"); return; }
     await runAll();          // fill the dashboard straight away
