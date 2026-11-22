@@ -6,7 +6,7 @@
 <title>LockSpy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       </span>
       <div>
         <div class="logo-name">LockSpy</div>
-        <div class="logo-sub">finds deadlocks in pthread programs</div>
+        <div class="logo-sub">Deadlock &amp; lock-contention detector</div>
       </div>
     </div>
     <nav class="nav-tabs" aria-label="Pages">
@@ -39,22 +39,24 @@
 
 <main class="page">
   <section class="card intro" id="intro" aria-labelledby="intro-title">
-    <button class="intro-hide" id="intro-hide" type="button">hide this</button>
+    <button class="intro-hide" id="intro-hide" type="button" aria-label="Hide the introduction">Hide intro ✕</button>
     <div class="intro-grid">
       <div class="intro-text">
-        <h1 id="intro-title">A deadlock detector you can watch work</h1>
-        <p>Two threads, two locks. Thread P takes lock A and then B; thread Q takes B and then A. Most of the
-          time they miss each other and the program is fine. Once in a while both grab their first lock at the
-          same moment, and then each waits for the other forever. Tests rarely catch this because it depends on timing.</p>
-        <p>LockSpy sits between the program and the pthread library (via <code>LD_PRELOAD</code>, so no recompiling)
-          and keeps track of which thread holds which lock. It looks for two things:</p>
+        <div class="crumb">What is this?</div>
+        <h1 id="intro-title">LockSpy finds deadlocks in multithreaded programs before they freeze</h1>
+        <p>Threads use <b>locks</b> so only one of them touches shared data at a time. If thread P takes lock A then B,
+          while thread Q takes B then A, each can end up waiting for the other forever. That's a <b>deadlock</b>,
+          and it only happens when the timing is unlucky, so it can slip past every test.</p>
+        <p>LockSpy watches a program's locks while it runs, without changing or recompiling the program, and
+          warns you about deadlocks, lock mistakes and slow locks. For each deadlock it tells you how to fix it.</p>
         <ol class="intro-steps">
-          <li>a <b>cycle in the lock order</b>: somewhere A was taken before B and somewhere else B before A.
-            That's a <span class="tag bad">Potential deadlock</span>, even if this run got lucky.</li>
-          <li>threads that are <b>actually stuck</b> waiting on each other. A watchdog checks every half second;
-            if it finds a cycle, that's a <span class="tag bad">Live deadlock</span>.</li>
+          <li><b>Listen in.</b> Loaded with <code>LD_PRELOAD</code>, LockSpy sees every <code>pthread_mutex_lock</code>
+            and <code>unlock</code> before the system library does.</li>
+          <li><b>Draw the lock order.</b> "Took B while holding A" becomes an arrow A → B. A circle of arrows means a
+            <span class="tag bad">Potential deadlock</span>, even if this run didn't freeze.</li>
+          <li><b>Watch for freezes.</b> A watchdog checks every half second who is stuck waiting for whom. A circle
+            there is a <span class="tag bad">Live deadlock</span>.</li>
         </ol>
-        <p>For each one it says which lines took the locks and what order to use instead.</p>
       </div>
       <figure class="intro-fig">
         <svg viewBox="0 0 300 210" role="img" aria-label="Thread P holds lock A and waits for B; thread Q holds B and waits for A">
@@ -65,35 +67,37 @@
           <path class="ia-line wait" d="M240 118 L240 92" marker-end="url(#ia)"/>
           <g class="ia-thread"><circle cx="60" cy="70" r="22"/><text x="60" y="70">P</text></g>
           <g class="ia-thread"><circle cx="240" cy="140" r="22"/><text x="240" y="140">Q</text></g>
-          <g class="ia-lock"><rect x="196" y="52" width="88" height="36" rx="3"/><text x="240" y="70">lock B</text></g>
-          <g class="ia-lock"><rect x="16" y="122" width="88" height="36" rx="3"/><text x="60" y="140">lock A</text></g>
+          <g class="ia-lock"><rect x="196" y="52" width="88" height="36" rx="8"/><text x="240" y="70">lock B</text></g>
+          <g class="ia-lock"><rect x="16" y="122" width="88" height="36" rx="8"/><text x="60" y="140">lock A</text></g>
           <text class="ia-cap" x="140" y="60">P wants B</text>
           <text class="ia-cap" x="160" y="160">Q wants A</text>
           <text class="ia-cap small" x="32" y="108">holds</text>
           <text class="ia-cap small" x="268" y="108">holds</text>
         </svg>
-        <figcaption>Fig. 1: P holds A and wants B, Q holds B and wants A.</figcaption>
+        <figcaption>P holds A and waits for B; Q holds B and waits for A. Neither can move.</figcaption>
       </figure>
     </div>
     <div class="intro-how">
-      The tests below run by themselves when the page loads. Click any program to see its lock graph, the report
-      and the lines involved; <b>ab_ba</b> and <b>philosophers_naive</b> are good ones to start with.
-      Turn on <i>Naive mode</i> and re-run a <i>tricky</i> program to see the false alarms LockSpy normally filters out.
-      If the idea is new to you, <a href="/learn.html">the Learn page</a> walks through it step by step.
+      <a class="btn primary intro-tour" href="/learn.html">New to deadlocks? Start the lesson →</a>
+      <b>Using this page:</b> all tests run automatically when it opens. The cards show the score.
+      Click a program on the left to see its <b>lock graph</b> (red circle = deadlock), the <b>report</b> with the
+      suggested fix, which locks threads waited on, and the code lines involved. Try <b>ab_ba</b> and
+      <b>philosophers_naive</b> first. Turn on <b>Naive mode</b> and re-run a <i>tricky</i> program to see the false
+      alarms LockSpy normally filters out.
     </div>
   </section>
-  <button class="intro-show" id="intro-show" type="button" hidden>show the introduction</button>
+  <button class="intro-show" id="intro-show" type="button" hidden>What is LockSpy?</button>
 
   <section class="kpis" aria-label="Summary">
     <div class="kpi" id="kpi-bugs">
       <div class="kpi-label">Bugs caught</div>
       <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
-      <div class="kpi-note">of the buggy programs</div>
+      <div class="kpi-note">buggy programs flagged correctly</div>
     </div>
     <div class="kpi" id="kpi-fp">
       <div class="kpi-label">False alarms</div>
       <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
-      <div class="kpi-note">on programs that are fine</div>
+      <div class="kpi-note">warnings on safe programs</div>
     </div>
     <div class="kpi" id="kpi-pass">
       <div class="kpi-label">Tests passed</div>
@@ -101,7 +105,7 @@
       <div class="kpi-bar"><div></div></div>
     </div>
     <div class="kpi" id="kpi-slow">
-      <div class="kpi-label">Slowdown</div>
+      <div class="kpi-label">Average slowdown</div>
       <div class="kpi-value"><span class="v">–</span><span class="of"></span></div>
       <div class="kpi-note" id="kpi-slow-note">from the last benchmark</div>
     </div>
@@ -121,8 +125,8 @@
       </div>
       <ul class="plist" id="plist"></ul>
       <div class="own">
-        <button class="btn ghost own-btn" id="own-btn" type="button">Write your own code</button>
-        <p class="own-note">Paste a C/C++ pthread program and we'll compile it, run it and check it.</p>
+        <button class="btn ghost own-btn" id="own-btn" type="button">✎ Write your own code</button>
+        <p class="own-note">Type or paste a C/C++ pthread program. LockSpy compiles it, runs it and checks it.</p>
       </div>
     </div>
 
@@ -156,7 +160,7 @@
 
   <section class="bench">
     <div class="card">
-      <div class="card-head"><h2>Detection vs other tools</h2><span class="muted">same 16 programs for every tool</span></div>
+      <div class="card-head"><h2>Detection vs other tools</h2><span class="muted">same 16 programs</span></div>
       <div id="chart-detect" class="chart"></div>
     </div>
     <div class="card">
@@ -165,10 +169,6 @@
     </div>
   </section>
 </main>
-<footer class="foot">
-  <span>LockSpy · OS Lab project (24B11CS312), JIIT</span>
-  <span>Prakhar Agnihotri, Shreesh Goyal, Unnati Joshi, Pragya Sumbly</span>
-</footer>
 <script src="/app.js"></script>
 </body>
 </html>
