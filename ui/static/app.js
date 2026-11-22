@@ -128,7 +128,7 @@ function renderDetail() {
   const v = verdict(p, r);
   strip.className = "result-strip " + (v === "info" ? "" : v);
   const how = r.aborted ? "stopped by the watchdog" : r.timed_out ? "killed after timeout" : `exit code ${r.rc}`;
-  strip.innerHTML = (v === "pass" ? `<span class="big pass-t">✓ Pass</span>` : v === "fail" ? `<span class="big fail-t">✗ Fail</span>` : "") +
+  strip.innerHTML = (v === "pass" ? `<span class="big pass-t">Pass</span>` : v === "fail" ? `<span class="big fail-t">Fail</span>` : "") +
     `<span>Found: ${tags(r.found)}</span>` + (p.custom ? "" : `<span class="muted">expected ${p.expected.length ? p.expected.map(nice).join(", ") : "none"}</span>`) +
     `<span class="right">${r.seconds.toFixed(3)} s · ${how}${r.naive ? " · naive" : ""}</span>`;
   renderGraph(r.report);
