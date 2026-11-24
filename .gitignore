@@ -5,3 +5,4 @@ results/demo/
 results/memcheck/
 core
 core.*
+__pycache__/

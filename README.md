@@ -145,6 +145,8 @@ real-world benchmark.
 
 ## Other docs
 
+- [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md): the whole project on one page, for the team
+- [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md): every file and function explained in basic language
 - [docs/INTRO.md](docs/INTRO.md): simple introduction, start here
 - [docs/EXPLAIN.md](docs/EXPLAIN.md): notes for the viva
 - [docs/DESIGN.md](docs/DESIGN.md): design decisions and problems we ran into
